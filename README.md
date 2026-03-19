@@ -92,7 +92,7 @@ Create `.env` files:
 DATABASE_URL="postgresql://postgres:yourpassword@localhost:5432/jobtracker?schema=public"
 JWT_SECRET="your-super-secret-jwt-key-change-in-production"
 JWT_EXPIRES_IN="24h"
-PORT=5000
+PORT=5001
 NODE_ENV=development
 FRONTEND_URL="http://localhost:3000"
 
@@ -102,7 +102,7 @@ OPENAI_API_KEY="your-openai-api-key"
 
 **Frontend (.env.local):**
 ```env
-NEXT_PUBLIC_API_URL="http://localhost:5000/api"
+NEXT_PUBLIC_API_URL="http://localhost:5001/api"
 ```
 
 ### 4. Database Migration
