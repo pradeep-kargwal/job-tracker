@@ -73,7 +73,7 @@ export const getApplications = async (
         prisma.application.count({ where }),
     ]);
 
-    const response: PaginatedResponse = {
+    const response: PaginatedResponse<typeof applications> = {
         success: true,
         message: 'Applications retrieved successfully',
         data: applications,
