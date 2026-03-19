@@ -1,0 +1,237 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  name         String?
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  
+  applications Application[]
+  notes        Note[]
+  interviews   Interview[]
+  followups    FollowUp[]
+  followupHistory FollowupHistory[]
+  resumes      Resume[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+enum ApplicationStatus {
+  NEW_CALL       @map("new_call")
+  JD_RECEIVED    @map("jd_received")
+  APPLIED        @map("applied")
+  SHORTLISTED    @map("shortlisted")
+  INTERVIEW_SCHEDULED @map("interview_scheduled")
+  INTERVIEW_COMPLETED @map("interview_completed")
+  OFFER          @map("offer")
+  REJECTED       @map("rejected")
+  ON_HOLD        @map("on_hold")
+}
+
+enum Source {
+  NAUKRI
+  LINKEDIN
+  INDEED
+  INSTAHYRE
+  REFERRAL
+  COMPANY_WEBSITE
+  OTHER
+}
+
+model Application {
+  id              String           @id @default(uuid())
+  userId          String           @map("user_id")
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Recruiter Info
+  recruiterName   String?          @map("recruiter_name")
+  recruiterCompany String?         @map("recruiter_company")
+  hiringCompany   String?          @map("hiring_company")
+  phone           String?
+  email           String?
+  
+  // Job Details
+  source          Source?
+  jobRole         String?          @map("job_role")
+  techStack       String[]         @map("tech_stack")
+  
+  // JD
+  jdReceived      Boolean          @default(false) @map("jd_received")
+  jdLink          String?          @map("jd_link")
+  jdFilePath      String?          @map("jd_file_path")
+  
+  // Application Status
+  applied         Boolean          @default(false)
+  appliedDate     DateTime?        @map("applied_date")
+  resumeVersion   String?          @map("resume_version")
+  currentStatus   ApplicationStatus @default(NEW_CALL) @map("current_status")
+  
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  notes           Note[]
+  interviews      Interview[]
+  followups       FollowUp[]
+  
+  @@index([userId])
+  @@index([currentStatus])
+  @@map("applications")
+}
+
+enum NoteType {
+  CALL
+  GENERAL
+  FOLLOWUP
+  FEEDBACK
+}
+
+model Note {
+  id            String    @id @default(uuid())
+  applicationId String    @map("application_id")
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId        String    @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content       String
+  noteType      NoteType  @default(GENERAL) @map("note_type")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  @@index([applicationId])
+  @@index([userId])
+  @@map("notes")
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model Interview {
+  id            String          @id @default(uuid())
+  applicationId String          @map("application_id")
+  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId        String          @map("user_id")
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  roundName     String          @map("round_name")
+  scheduledDate DateTime?       @map("scheduled_date")
+  status        InterviewStatus @default(SCHEDULED)
+  notes         String?
+  feedback      String?
+  rating        Int?
+  
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  
+  @@index([applicationId])
+  @@index([userId])
+  @@map("interviews")
+}
+
+enum FollowUpType {
+  EMAIL
+  CALL
+  LINKEDIN
+}
+
+enum ResponseStatus {
+  PENDING
+  RESPONDED
+  NO_RESPONSE
+}
+
+model FollowUp {
+  id              String        @id @default(uuid())
+  applicationId   String        @map("application_id")
+  application     Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId          String        @map("user_id")
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  followUpRequired Boolean       @default(true) @map("follow_up_required")
+  followUpDate    DateTime?    @map("follow_up_date")
+  followUpType    FollowUpType? @map("follow_up_type")
+  responseStatus  ResponseStatus @default(PENDING) @map("response_status")
+  responseNotes   String?       @map("response_notes")
+  
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  
+  history         FollowupHistory[]
+  
+  @@index([applicationId])
+  @@index([userId])
+  @@index([followUpDate])
+  @@map("followups")
+}
+
+model FollowupHistory {
+  id            String    @id @default(uuid())
+  followupId    String    @map("followup_id")
+  followup      FollowUp  @relation(fields: [followupId], references: [id], onDelete: Cascade)
+  userId        String    @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  actionDate    DateTime  @default(now()) @map("action_date")
+  actionType    String    @map("action_type")
+  responseReceived String? @map("response_received")
+  notes         String?
+  
+  @@index([followupId])
+  @@index([userId])
+  @@map("followup_history")
+}
+
+model Resume {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  fileName    String   @map("file_name")
+  filePath    String   @map("file_path")
+  fileSize    Int?     @map("file_size")
+  tags        String[]
+  isDefault   Boolean  @default(false) @map("is_default")
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@index([userId])
+  @@map("resumes")
+}
+
+enum NotificationType {
+  FOLLOWUP
+  INTERVIEW
+  APPLICATION
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type        NotificationType
+  title       String
+  message     String
+  referenceId String?          @map("reference_id")
+  isRead      Boolean          @default(false) @map("is_read")
+  
+  createdAt   DateTime         @default(now()) @map("created_at")
+  
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
