@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt, { SignOptions } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { AuthRequest, ApiResponse } from '../types';
@@ -47,12 +47,10 @@ export const register = async (
         },
     });
 
-    const secret = process.env.JWT_SECRET || 'default-secret-key';
-    const options: SignOptions = { expiresIn: '24h' };
     const token = jwt.sign(
         { userId: user.id, email: user.email },
-        secret,
-        options
+        process.env.JWT_SECRET!,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
     res.cookie('token', token, {
@@ -91,12 +89,10 @@ export const login = async (
         throw new AppError('Invalid email or password', 401);
     }
 
-    const secret = process.env.JWT_SECRET || 'default-secret-key';
-    const options: SignOptions = { expiresIn: '24h' };
     const token = jwt.sign(
         { userId: user.id, email: user.email },
-        secret,
-        options
+        process.env.JWT_SECRET!,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
     res.cookie('token', token, {
