@@ -135,7 +135,8 @@ export const analyticsAPI = {
     getAnalytics: () => api.get('/analytics'),
     getFunnel: () => api.get('/analytics/funnel'),
     getSources: () => api.get('/analytics/sources'),
-    getTimeline: () => api.get('/analytics/timeline'),
+    getTimeline: (period?: string) => api.get('/analytics/timeline', { params: { period } }),
+    getComprehensive: () => api.get('/analytics/comprehensive'),
 };
 
 // AI API
