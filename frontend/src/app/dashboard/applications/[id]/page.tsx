@@ -19,6 +19,8 @@ import {
 import { applicationsAPI, notesAPI, interviewsAPI, followupsAPI } from '@/lib/api';
 import { STATUS_LABELS } from '@/lib/utils';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+
 const fetcher = (id: string) => applicationsAPI.getById(id).then((res) => res.data.data);
 
 export default function ApplicationDetailPage() {
@@ -359,11 +361,16 @@ export default function ApplicationDetailPage() {
                                             Upload
                                         </label>
                                     </div>
-                                    {application.jdFileName && (
-                                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    {application.jdFileName && application.jdFilePath && (
+                                        <a
+                                            href={`${API_URL}/${application.jdFilePath}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 text-sm text-primary hover:underline cursor-pointer"
+                                        >
                                             <FileText className="w-4 h-4" />
                                             <span>{application.jdFileName}</span>
-                                        </div>
+                                        </a>
                                     )}
                                     {jdFile && (
                                         <div className="flex items-center gap-2 mt-2">
