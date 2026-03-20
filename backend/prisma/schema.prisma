@@ -47,7 +47,9 @@ model Application {
   // JD
   jdReceived      Boolean          @default(false) @map("jd_received")
   jdLink          String?          @map("jd_link")
+  jdText          String?          @map("jd_text")
   jdFilePath      String?          @map("jd_file_path")
+  jdFileName      String?          @map("jd_file_name")
   
   // Application Status
   applied         Boolean          @default(false)

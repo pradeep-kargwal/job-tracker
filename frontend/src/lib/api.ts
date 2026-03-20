@@ -59,6 +59,10 @@ export const applicationsAPI = {
         api.patch(`/applications/${id}/status`, data),
     delete: (id: string) => api.delete(`/applications/${id}`),
     getPipeline: () => api.get('/applications/pipeline'),
+    uploadJdFile: (id: string, formData: FormData) =>
+        api.post(`/applications/${id}/jd-upload`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        }),
 };
 
 // Notes API

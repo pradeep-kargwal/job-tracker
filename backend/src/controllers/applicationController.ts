@@ -1,8 +1,17 @@
 import { Response } from 'express';
 import { z } from 'zod';
+import path from 'path';
+import fs from 'fs';
 import prisma from '../config/database';
 import { AuthRequest, ApiResponse, PaginatedResponse, ApplicationStatus } from '../types';
 import { AppError } from '../middleware/errorHandler';
+
+const JD_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'jd');
+
+// Ensure JD upload directory exists
+if (!fs.existsSync(JD_UPLOAD_DIR)) {
+    fs.mkdirSync(JD_UPLOAD_DIR, { recursive: true });
+}
 
 const applicationSchema = z.object({
     recruiterName: z.string().optional(),
@@ -15,6 +24,7 @@ const applicationSchema = z.object({
     techStack: z.array(z.string()).optional(),
     jdReceived: z.boolean().optional(),
     jdLink: z.string().optional(),
+    jdText: z.string().optional(),
     applied: z.boolean().optional(),
     appliedDate: z.string().optional(),
     resumeVersion: z.string().optional(),
@@ -327,6 +337,61 @@ export const getPipelineData = async (
         success: true,
         message: 'Pipeline data retrieved successfully',
         data: pipeline,
+    };
+
+    res.json(response);
+};
+
+export const uploadJdFile = async (
+    req: AuthRequest,
+    res: Response
+): Promise<void> => {
+    const { id } = req.params;
+
+    if (!req.file) {
+        throw new AppError('No file uploaded', 400);
+    }
+
+    const existing = await prisma.application.findFirst({
+        where: {
+            id,
+            userId: req.user!.id,
+        },
+    });
+
+    if (!existing) {
+        throw new AppError('Application not found', 404);
+    }
+
+    // Delete old JD file if exists
+    if (existing.jdFilePath && fs.existsSync(existing.jdFilePath)) {
+        fs.unlinkSync(existing.jdFilePath);
+    }
+
+    const application = await prisma.application.update({
+        where: { id },
+        data: {
+            jdFilePath: req.file.path,
+            jdFileName: req.file.originalname,
+            jdReceived: true,
+        },
+        include: {
+            notes: {
+                orderBy: { createdAt: 'desc' },
+            },
+            interviews: {
+                orderBy: { scheduledDate: 'asc' },
+            },
+            followups: {
+                orderBy: { followUpDate: 'asc' },
+            },
+        },
+    });
+
+    const response: ApiResponse = {
+        success: true,
+        message: 'JD file uploaded successfully',
+        data: application,
     };
 
     res.json(response);

@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import multer from 'multer';
+import path from 'path';
 import {
     getApplications,
     getApplicationById,
@@ -7,6 +9,7 @@ import {
     updateApplicationStatus,
     deleteApplication,
     getPipelineData,
+    uploadJdFile,
 } from '../controllers/applicationController';
 import { getNotes, createNote, updateNote, deleteNote } from '../controllers/noteController';
 import { getInterviews, createInterview, updateInterview, deleteInterview } from '../controllers/interviewController';
@@ -14,6 +17,34 @@ import { getFollowups, createFollowup, updateFollowup, deleteFollowup, addFollow
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
+
+// Configure multer for JD file uploads
+const jdStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(process.cwd(), 'uploads', 'jd');
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    },
+});
+
+const jdUpload = multer({
+    storage: jdStorage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit for JD
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['.pdf', '.doc', '.docx', '.txt'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (allowedTypes.includes(ext)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only PDF, DOC, DOCX, and TXT are allowed.'));
+        }
+    },
+});
 
 // All routes require authentication
 router.use(authenticate);
@@ -26,6 +57,9 @@ router.post('/', createApplication);
 router.put('/:id', updateApplication);
 router.patch('/:id/status', updateApplicationStatus);
 router.delete('/:id', deleteApplication);
+
+// JD File upload
+router.post('/:id/jd-upload', jdUpload.single('jdFile'), uploadJdFile);
 
 // Notes for application
 router.get('/:applicationId/notes', getNotes);

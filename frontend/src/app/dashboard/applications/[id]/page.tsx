@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import useSWR from 'swr';
@@ -10,7 +10,11 @@ import {
     Clock,
     MessageSquare,
     Calendar,
-    Edit
+    Edit,
+    Upload,
+    FileText,
+    Check,
+    X
 } from 'lucide-react';
 import { applicationsAPI, notesAPI, interviewsAPI, followupsAPI } from '@/lib/api';
 import { STATUS_LABELS } from '@/lib/utils';
@@ -24,10 +28,23 @@ export default function ApplicationDetailPage() {
 
     const { data, error, mutate } = useSWR(id ? `/api/applications/${id}` : null, () => fetcher(id));
 
+    // Initialize jdText when data loads
+    useEffect(() => {
+        if (data?.jdText) {
+            setJdText(data.jdText);
+        }
+    }, [data]);
+
     const [activeTab, setActiveTab] = useState<'notes' | 'interviews' | 'followups'>('notes');
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<any>({});
+    const [isEditingJd, setIsEditingJd] = useState(false);
+    const [jdText, setJdText] = useState('');
+    const [jdFile, setJdFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
     const [newNote, setNewNote] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const jdFileInputRef = useRef<HTMLInputElement>(null);
     const [newInterview, setNewInterview] = useState({
         round_name: '',
         scheduled_date: '',
@@ -142,6 +159,44 @@ export default function ApplicationDetailPage() {
         }
     };
 
+    const handleSaveJdText = async () => {
+        try {
+            await applicationsAPI.update(id, { jdText });
+            setIsEditingJd(false);
+            mutate();
+        } catch (err) {
+            alert('Failed to save JD text');
+        }
+    };
+
+    const handleJdReceivedToggle = async (checked: boolean) => {
+        try {
+            await applicationsAPI.update(id, { jdReceived: checked });
+            mutate();
+        } catch (err) {
+            alert('Failed to update JD received status');
+        }
+    };
+
+    const handleJdFileUpload = async () => {
+        if (!jdFile) return;
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('jdFile', jdFile);
+            await applicationsAPI.uploadJdFile(id, formData);
+            setJdFile(null);
+            if (jdFileInputRef.current) {
+                jdFileInputRef.current.value = '';
+            }
+            mutate();
+        } catch (err) {
+            alert('Failed to upload JD file');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     // Helper to check if techStack is array
     const getTechStackDisplay = () => {
         if (!application.techStack) return null;
@@ -183,6 +238,7 @@ export default function ApplicationDetailPage() {
                             techStack: techStackValue,
                             jdReceived: application.jdReceived || false,
                             jdLink: application.jdLink || '',
+                            jdText: application.jdText || '',
                             applied: application.applied || false,
                             appliedDate: application.appliedDate ? application.appliedDate.split('T')[0] : '',
                             resumeVersion: application.resumeVersion || '',
@@ -267,9 +323,119 @@ export default function ApplicationDetailPage() {
                             </a>
                         </div>
                     )}
-                    <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">JD Received</h3>
-                        <p className="text-lg">{application?.jdReceived ? 'Yes' : 'No'}</p>
+                    <div className="md:col-span-2">
+                        <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-sm font-medium text-gray-500">JD Received</h3>
+                            <input
+                                type="checkbox"
+                                checked={application?.jdReceived || false}
+                                onChange={(e) => handleJdReceivedToggle(e.target.checked)}
+                                className="w-4 h-4 text-primary rounded"
+                            />
+                            <span className="text-sm text-gray-600">
+                                {application?.jdReceived ? 'Yes' : 'No'}
+                            </span>
+                        </div>
+                        
+                        {application?.jdReceived && (
+                            <div className="mt-3 space-y-3">
+                                {/* JD File Upload/Display */}
+                                <div className="p-3 bg-gray-50 rounded-lg">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-gray-700">JD File</span>
+                                        <input
+                                            type="file"
+                                            ref={jdFileInputRef}
+                                            onChange={(e) => setJdFile(e.target.files?.[0] || null)}
+                                            accept=".pdf,.doc,.docx,.txt"
+                                            className="hidden"
+                                            id="jd-file-upload"
+                                        />
+                                        <label
+                                            htmlFor="jd-file-upload"
+                                            className="flex items-center gap-1 px-2 py-1 text-xs bg-primary text-white rounded cursor-pointer hover:bg-primary/90"
+                                        >
+                                            <Upload className="w-3 h-3" />
+                                            Upload
+                                        </label>
+                                    </div>
+                                    {application.jdFileName && (
+                                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                                            <FileText className="w-4 h-4" />
+                                            <span>{application.jdFileName}</span>
+                                        </div>
+                                    )}
+                                    {jdFile && (
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <span className="text-sm text-gray-600">{jdFile.name}</span>
+                                            <button
+                                                onClick={handleJdFileUpload}
+                                                disabled={isUploading}
+                                                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                                            >
+                                                {isUploading ? 'Uploading...' : 'Save'}
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setJdFile(null);
+                                                    if (jdFileInputRef.current) jdFileInputRef.current.value = '';
+                                                }}
+                                                className="p-1 text-gray-400 hover:text-red-500"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* JD Text */}
+                                <div className="p-3 bg-gray-50 rounded-lg">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-gray-700">Job Description</span>
+                                        {!isEditingJd ? (
+                                            <button
+                                                onClick={() => setIsEditingJd(true)}
+                                                className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded"
+                                            >
+                                                <Edit className="w-3 h-3" />
+                                                Edit
+                                            </button>
+                                        ) : (
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={handleSaveJdText}
+                                                    className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                                >
+                                                    <Check className="w-3 h-3" />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setIsEditingJd(false);
+                                                        setJdText(application.jdText || '');
+                                                    }}
+                                                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {isEditingJd ? (
+                                        <textarea
+                                            value={jdText}
+                                            onChange={(e) => setJdText(e.target.value)}
+                                            placeholder="Paste job description here..."
+                                            rows={6}
+                                            className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary resize-y"
+                                        />
+                                    ) : (
+                                        <div className="text-sm text-gray-600 whitespace-pre-wrap">
+                                            {application.jdText || 'No job description added yet.'}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div>
                         <h3 className="text-sm font-medium text-gray-500 mb-1">Applied</h3>
@@ -653,6 +819,16 @@ export default function ApplicationDetailPage() {
                                         value={editForm.jdLink || ''}
                                         onChange={(e) => setEditForm({ ...editForm, jdLink: e.target.value })}
                                         className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">JD Text</label>
+                                    <textarea
+                                        value={editForm.jdText || ''}
+                                        onChange={(e) => setEditForm({ ...editForm, jdText: e.target.value })}
+                                        placeholder="Paste job description here..."
+                                        rows={4}
+                                        className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary resize-y"
                                     />
                                 </div>
                                 <div>
