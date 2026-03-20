@@ -27,7 +27,9 @@ export default function ApplicationsPage() {
         const matchesSearch =
             app.recruiterName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             app.hiringCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            app.jobRole?.toLowerCase().includes(searchTerm.toLowerCase());
+            app.jobRole?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            app.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            app.email?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStatus = !filterStatus || app.currentStatus === filterStatus;
         return matchesSearch && matchesStatus;
     });

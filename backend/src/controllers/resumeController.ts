@@ -156,9 +156,14 @@ export const deleteResume = async (
         throw new AppError('Resume not found', 404);
     }
 
-    // Delete file if exists
-    if (resume.filePath && fs.existsSync(resume.filePath)) {
-        fs.unlinkSync(resume.filePath);
+    // Delete file if exists - convert relative path to absolute
+    if (resume.filePath) {
+        const absolutePath = path.isAbsolute(resume.filePath) 
+            ? resume.filePath 
+            : path.join(process.cwd(), resume.filePath);
+        if (fs.existsSync(absolutePath)) {
+            fs.unlinkSync(absolutePath);
+        }
     }
 
     await prisma.resume.delete({
@@ -197,11 +202,14 @@ export const uploadResume = async (
         });
     }
 
+    // Store relative path instead of absolute path
+    const relativePath = path.relative(process.cwd(), req.file.path);
+
     const resume = await prisma.resume.create({
         data: {
             userId: req.user!.id,
             fileName: req.file.originalname,
-            filePath: req.file.path,
+            filePath: relativePath,
             fileSize: req.file.size,
             tags: tagsValue,
             isDefault: isDefault === 'true',

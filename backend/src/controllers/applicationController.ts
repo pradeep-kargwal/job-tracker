@@ -57,6 +57,8 @@ export const getApplications = async (
             { jobRole: { contains: search, mode: 'insensitive' } },
             { hiringCompany: { contains: search, mode: 'insensitive' } },
             { recruiterName: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search } },
+            { email: { contains: search, mode: 'insensitive' } },
         ];
     }
 
@@ -363,15 +365,23 @@ export const uploadJdFile = async (
         throw new AppError('Application not found', 404);
     }
 
-    // Delete old JD file if exists
-    if (existing.jdFilePath && fs.existsSync(existing.jdFilePath)) {
-        fs.unlinkSync(existing.jdFilePath);
+    // Delete old JD file if exists - convert relative path to absolute
+    if (existing.jdFilePath) {
+        const absolutePath = path.isAbsolute(existing.jdFilePath) 
+            ? existing.jdFilePath 
+            : path.join(process.cwd(), existing.jdFilePath);
+        if (fs.existsSync(absolutePath)) {
+            fs.unlinkSync(absolutePath);
+        }
     }
+
+    // Store relative path instead of absolute path
+    const relativePath = path.relative(process.cwd(), req.file.path);
 
     const application = await prisma.application.update({
         where: { id },
         data: {
-            jdFilePath: req.file.path,
+            jdFilePath: relativePath,
             jdFileName: req.file.originalname as any,
             jdReceived: true,
         },

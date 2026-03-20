@@ -363,7 +363,7 @@ export default function ApplicationDetailPage() {
                                     </div>
                                     {application.jdFileName && application.jdFilePath && (
                                         <a
-                                            href={`${API_URL}/${application.jdFilePath}`}
+                                            href={`${API_URL.replace('/api', '')}/${application.jdFilePath}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="flex items-center gap-2 text-sm text-primary hover:underline cursor-pointer"
