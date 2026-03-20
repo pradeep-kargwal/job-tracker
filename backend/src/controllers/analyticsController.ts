@@ -54,7 +54,7 @@ export const getAnalytics = async (
         const stats = sourceMap.get(source)!;
         stats.total++;
         if (app.applied) stats.applied++;
-        if (app.currentStatus === 'INTERVIEW_SCHEDULED' || app.currentStatus === 'INTERVIEW_COMPLETED') stats.interviews++;
+        if (app.currentStatus === 'INTERVIEW_IN_PROGRESS' || app.currentStatus === 'INTERVIEW_SCHEDULED' || app.currentStatus === 'INTERVIEW_COMPLETED') stats.interviews++;
         if (app.currentStatus === 'OFFER') stats.offers++;
     }
 
@@ -93,7 +93,7 @@ export const getDashboardStats = async (
     const interviewsOngoing = await prisma.application.count({
         where: {
             userId,
-            currentStatus: 'INTERVIEW_SCHEDULED',
+            currentStatus: 'INTERVIEW_IN_PROGRESS',
         },
     });
 
@@ -132,26 +132,24 @@ export const getDashboardStats = async (
         },
     });
 
-    // Due follow-ups
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dueFollowups = await prisma.followUp.count({
+    // Due follow-ups (not completed)
+    const prismaAny = prisma as any;
+    const dueFollowups = await prismaAny.followUp.count({
         where: {
             userId,
-            followUpRequired: true,
-            followUpDate: {
-                lte: today,
+            status: {
+                not: 'COMPLETED',
             },
-            responseStatus: 'PENDING',
         },
     });
 
-    // Due follow-ups with application details (all pending follow-ups)
-    const dueFollowupsList = await prisma.followUp.findMany({
+    // Due follow-ups with application details (pending follow-ups - UPCOMING, DUE, or MISSED)
+    const dueFollowupsList = await prismaAny.followUp.findMany({
         where: {
             userId,
-            followUpRequired: true,
-            responseStatus: 'PENDING',
+            status: {
+                not: 'COMPLETED',
+            },
         },
         include: {
             application: {
@@ -178,15 +176,18 @@ export const getDashboardStats = async (
         },
     });
 
-    // Today's interviews
+    // Today's interviews from Interview Tracker
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
     
-    const todayInterviews = await prisma.interview.findMany({
+    // Today's interviews from new InterviewRound table (Interview Tracker)
+    const todayNewInterviews = await prismaAny.interviewRound.findMany({
         where: {
-            userId,
+            interviewProcess: {
+                userId,
+            },
             status: 'SCHEDULED',
             scheduledDate: {
                 gte: todayStart,
@@ -194,16 +195,32 @@ export const getDashboardStats = async (
             },
         },
         include: {
-            application: {
-                select: {
-                    id: true,
-                    hiringCompany: true,
-                    jobRole: true,
+            interviewProcess: {
+                include: {
+                    application: {
+                        select: {
+                            id: true,
+                            hiringCompany: true,
+                            jobRole: true,
+                        },
+                    },
                 },
             },
         },
         orderBy: { scheduledDate: 'asc' },
     });
+
+    // Use only Interview Tracker data
+    const todayInterviews = todayNewInterviews.map((round: any) => ({
+        id: round.id,
+        roundName: round.roundName,
+        round_name: round.roundName,
+        scheduledDate: round.scheduledDate,
+        scheduled_date: round.scheduledDate,
+        status: round.status,
+        source: 'tracker',
+        application: round.interviewProcess.application,
+    }));
 
     const response: ApiResponse = {
         success: true,
@@ -356,11 +373,11 @@ export const getTimelineData = async (
 
         monthlyData[monthKey].total++;
 
-        if (['APPLIED', 'SHORTLISTED', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER'].includes(app.currentStatus)) {
+        if (['APPLIED', 'SHORTLISTED', 'INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER'].includes(app.currentStatus)) {
             monthlyData[monthKey].applied++;
         }
 
-        if (['INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER'].includes(app.currentStatus)) {
+        if (['INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER'].includes(app.currentStatus)) {
             monthlyData[monthKey].interviewed++;
         }
     });

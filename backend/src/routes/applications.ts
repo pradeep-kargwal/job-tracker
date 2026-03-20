@@ -13,7 +13,15 @@ import {
 } from '../controllers/applicationController';
 import { getNotes, createNote, updateNote, deleteNote } from '../controllers/noteController';
 import { getInterviews, createInterview, updateInterview, deleteInterview } from '../controllers/interviewController';
-import { getFollowups, createFollowup, updateFollowup, deleteFollowup, addFollowupHistory } from '../controllers/followupController';
+import { 
+    getFollowUpsByApplication, 
+    createFollowUp, 
+    updateFollowUp, 
+    deleteFollowUp,
+    markComplete,
+    snoozeFollowUp,
+    getAllFollowUps 
+} from '../controllers/followupController';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -70,8 +78,8 @@ router.get('/:applicationId/interviews', getInterviews);
 router.post('/:applicationId/interviews', createInterview);
 
 // Follow-ups for application
-router.get('/:applicationId/followups', getFollowups);
-router.post('/:applicationId/followups', createFollowup);
+router.get('/:applicationId/followups', getFollowUpsByApplication);
+router.post('/:applicationId/followups', createFollowUp);
 
 // Individual routes for notes
 router.put('/notes/:id', updateNote);
@@ -82,8 +90,12 @@ router.put('/interviews/:id', updateInterview);
 router.delete('/interviews/:id', deleteInterview);
 
 // Individual routes for followups
-router.put('/followups/:id', updateFollowup);
-router.delete('/followups/:id', deleteFollowup);
-router.post('/followups/:id/history', addFollowupHistory);
+router.put('/followups/:id', updateFollowUp);
+router.delete('/followups/:id', deleteFollowUp);
+router.patch('/followups/:id/complete', markComplete);
+router.patch('/followups/:id/snooze', snoozeFollowUp);
+
+// Get all followups for dashboard
+router.get('/followups/all', getAllFollowUps);
 
 export default router;

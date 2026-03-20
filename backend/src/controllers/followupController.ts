@@ -1,273 +1,348 @@
-import { Response } from 'express';
-import { z } from 'zod';
-import prisma from '../config/database';
-import { AuthRequest, ApiResponse } from '../types';
-import { AppError } from '../middleware/errorHandler';
+import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
 
-const followupSchema = z.object({
-    followUpRequired: z.boolean().optional(),
-    followUpDate: z.string().optional(),
-    followUpType: z.enum(['EMAIL', 'CALL', 'LINKEDIN']).optional(),
-    responseStatus: z.enum(['PENDING', 'RESPONDED', 'NO_RESPONSE']).optional(),
-    responseNotes: z.string().optional(),
-});
+const prisma = new PrismaClient() as any;
 
-const followupHistorySchema = z.object({
-    actionType: z.string().min(1, 'Action type is required'),
-    responseReceived: z.string().optional(),
-    notes: z.string().optional(),
-});
-
-export const getFollowups = async (
-    req: AuthRequest,
-    res: Response
-): Promise<void> => {
-    const { applicationId } = req.params;
-
-    const application = await prisma.application.findFirst({
-        where: {
-            id: applicationId,
-            userId: req.user!.id,
-        },
-    });
-
-    if (!application) {
-        throw new AppError('Application not found', 404);
-    }
-
-    const followups = await prisma.followUp.findMany({
-        where: { applicationId },
-        include: {
-            history: {
-                orderBy: { actionDate: 'desc' },
-            },
-        },
-        orderBy: { followUpDate: 'asc' },
-    });
-
-    const response: ApiResponse = {
-        success: true,
-        message: 'Follow-ups retrieved successfully',
-        data: followups,
-    };
-
-    res.json(response);
-};
-
-export const createFollowup = async (
-    req: AuthRequest,
-    res: Response
-): Promise<void> => {
-    const { applicationId } = req.params;
-    const rawData = req.body;
-
-    // Map frontend field names to backend field names
-    const data = {
-        followUpRequired: rawData.follow_up_required ?? rawData.followUpRequired ?? true,
-        followUpDate: rawData.follow_up_date ?? rawData.followUpDate,
-        followUpType: rawData.follow_up_type ?? rawData.followUpType ?? 'EMAIL',
-        responseStatus: rawData.response_status ?? rawData.responseStatus ?? 'PENDING',
-        responseNotes: rawData.description ?? rawData.responseNotes ?? rawData.notes,
-    };
-
-    const parsedData = followupSchema.parse(data);
-
-    const application = await prisma.application.findFirst({
-        where: {
-            id: applicationId,
-            userId: req.user!.id,
-        },
-    });
-
-    if (!application) {
-        throw new AppError('Application not found', 404);
-    }
-
-    const followup = await prisma.followUp.create({
-        data: {
-            ...parsedData,
-            applicationId,
-            userId: req.user!.id,
-            followUpDate: parsedData.followUpDate ? new Date(parsedData.followUpDate) : undefined,
-        },
-        include: {
-            history: true,
-        },
-    });
-
-    // Create notification for follow-up
-    if (data.followUpDate) {
-        await prisma.notification.create({
-            data: {
-                userId: req.user!.id,
-                type: 'FOLLOWUP',
-                title: 'Follow-up Due',
-                message: `Follow-up due for ${application.hiringCompany || application.jobRole} on ${new Date(data.followUpDate).toLocaleDateString()}`,
-                referenceId: followup.id,
-            },
-        });
-    }
-
-    const response: ApiResponse = {
-        success: true,
-        message: 'Follow-up created successfully',
-        data: followup,
-    };
-
-    res.status(201).json(response);
-};
-
-export const updateFollowup = async (
-    req: AuthRequest,
-    res: Response
-): Promise<void> => {
-    const { id } = req.params;
-    const data = followupSchema.parse(req.body);
-
-    const followup = await prisma.followUp.findFirst({
-        where: {
-            id,
-            userId: req.user!.id,
-        },
-    });
-
-    if (!followup) {
-        throw new AppError('Follow-up not found', 404);
-    }
-
-    const updatedFollowup = await prisma.followUp.update({
-        where: { id },
-        data: {
-            ...data,
-            followUpDate: data.followUpDate ? new Date(data.followUpDate) : undefined,
-        },
-        include: {
-            history: {
-                orderBy: { actionDate: 'desc' },
-            },
-        },
-    });
-
-    const response: ApiResponse = {
-        success: true,
-        message: 'Follow-up updated successfully',
-        data: updatedFollowup,
-    };
-
-    res.json(response);
-};
-
-export const addFollowupHistory = async (
-    req: AuthRequest,
-    res: Response
-): Promise<void> => {
-    const { id } = req.params;
-    const data = followupHistorySchema.parse(req.body);
-
-    const followup = await prisma.followUp.findFirst({
-        where: {
-            id,
-            userId: req.user!.id,
-        },
-    });
-
-    if (!followup) {
-        throw new AppError('Follow-up not found', 404);
-    }
-
-    const history = await prisma.followupHistory.create({
-        data: {
-            followupId: id,
-            userId: req.user!.id,
-            actionType: data.actionType,
-            responseReceived: data.responseReceived,
-            notes: data.notes,
-        },
-    });
-
-    // Update follow-up response status if responded
-    if (data.responseReceived) {
-        await prisma.followUp.update({
-            where: { id },
-            data: {
-                responseStatus: 'RESPONDED',
-                responseNotes: data.responseReceived,
-            },
-        });
-    }
-
-    const response: ApiResponse = {
-        success: true,
-        message: 'Follow-up history added successfully',
-        data: history,
-    };
-
-    res.status(201).json(response);
-};
-
-export const deleteFollowup = async (
-    req: AuthRequest,
-    res: Response
-): Promise<void> => {
-    const { id } = req.params;
-
-    const followup = await prisma.followUp.findFirst({
-        where: {
-            id,
-            userId: req.user!.id,
-        },
-    });
-
-    if (!followup) {
-        throw new AppError('Follow-up not found', 404);
-    }
-
-    await prisma.followUp.delete({
-        where: { id },
-    });
-
-    const response: ApiResponse = {
-        success: true,
-        message: 'Follow-up deleted successfully',
-    };
-
-    res.json(response);
-};
-
-export const getDueFollowups = async (
-    req: AuthRequest,
-    res: Response
-): Promise<void> => {
+// Helper to compute status based on date
+const computeStatus = (followUpDate: Date, isCompleted: boolean): string => {
+    if (isCompleted) return 'COMPLETED';
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    
+    const followUp = new Date(followUpDate);
+    followUp.setHours(0, 0, 0, 0);
+    
+    if (followUp < today) return 'MISSED';
+    if (followUp.getTime() === today.getTime()) return 'DUE';
+    return 'UPCOMING';
+};
 
-    const followups = await prisma.followUp.findMany({
-        where: {
-            userId: req.user!.id,
-            followUpRequired: true,
-            followUpDate: {
-                lte: today,
+// Create a new follow-up
+export const createFollowUp = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        // Get applicationId from URL params, not from body
+        const { applicationId: appIdFromParams } = req.params;
+        const { 
+            interviewProcessId,
+            contextType,
+            title,
+            description,
+            followUpDate,
+            priority,
+            relatedRound
+        } = req.body;
+
+        // Use URL param as applicationId
+        const applicationId = appIdFromParams;
+
+        console.log('URL params:', req.params);
+        console.log('Request body:', req.body);
+        console.log('Creating follow-up:', { applicationId, title, followUpDate, userId });
+
+        if (!applicationId || !title || !followUpDate) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Application ID, title, and follow-up date are required' 
+            });
+        }
+
+        const followUp = await prisma.followUp.create({
+            data: {
+                applicationId,
+                userId,
+                interviewProcessId: interviewProcessId || null,
+                contextType: contextType || 'GENERAL',
+                title,
+                description: description || null,
+                followUpDate: new Date(followUpDate),
+                priority: priority || 'MEDIUM',
+                relatedRound: relatedRound || null,
+                status: computeStatus(new Date(followUpDate), false),
             },
-            responseStatus: 'PENDING',
-        },
-        include: {
-            application: {
-                select: {
-                    id: true,
-                    hiringCompany: true,
-                    jobRole: true,
-                    recruiterName: true,
-                },
+            include: {
+                application: {
+                    select: {
+                        id: true,
+                        hiringCompany: true,
+                        jobRole: true,
+                    }
+                }
+            }
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Follow-up created successfully',
+            data: followUp
+        });
+    } catch (error: any) {
+        console.error('Error creating follow-up:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to create follow-up' });
+    }
+};
+
+// Get follow-ups for an application
+export const getFollowUpsByApplication = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { applicationId } = req.params;
+
+        const followUps = await prisma.followUp.findMany({
+            where: {
+                userId,
+                applicationId,
             },
-        },
-        orderBy: { followUpDate: 'asc' },
-    });
+            orderBy: {
+                followUpDate: 'asc',
+            },
+        });
 
-    const response: ApiResponse = {
-        success: true,
-        message: 'Due follow-ups retrieved successfully',
-        data: followups,
-    };
+        // Compute statuses dynamically
+        const followUpsWithStatus = followUps.map((fu: any) => ({
+            ...fu,
+            computedStatus: computeStatus(fu.followUpDate || new Date(), fu.status === 'COMPLETED'),
+        }));
 
-    res.json(response);
+        res.json({
+            success: true,
+            data: followUpsWithStatus,
+        });
+    } catch (error: any) {
+        console.error('Error fetching follow-ups:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to fetch follow-ups' });
+    }
+};
+
+// Get all follow-ups for dashboard (grouped by status)
+export const getAllFollowUps = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+
+        const followUps = await prisma.followUp.findMany({
+            where: {
+                userId,
+            },
+            include: {
+                application: {
+                    select: {
+                        id: true,
+                        hiringCompany: true,
+                        jobRole: true,
+                    }
+                }
+            },
+            orderBy: {
+                followUpDate: 'asc',
+            },
+        });
+
+        // Compute statuses and group
+        const dueToday: any[] = [];
+        const upcoming: any[] = [];
+        const missed: any[] = [];
+        const completed: any[] = [];
+
+        followUps.forEach((fu: any) => {
+            const computedStatus = computeStatus(fu.followUpDate || new Date(), fu.status === 'COMPLETED');
+            const followUp = {
+                ...fu,
+                computedStatus,
+            };
+
+            if (computedStatus === 'COMPLETED') {
+                completed.push(followUp);
+            } else if (computedStatus === 'MISSED') {
+                missed.push(followUp);
+            } else if (computedStatus === 'DUE') {
+                dueToday.push(followUp);
+            } else {
+                upcoming.push(followUp);
+            }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                dueToday,
+                upcoming,
+                missed,
+                completed,
+            }
+        });
+    } catch (error: any) {
+        console.error('Error fetching all follow-ups:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to fetch follow-ups' });
+    }
+};
+
+// Update a follow-up
+export const updateFollowUp = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { id } = req.params;
+        const { 
+            title,
+            description,
+            followUpDate,
+            priority,
+            contextType,
+            relatedRound 
+        } = req.body;
+
+        const existingFollowUp = await prisma.followUp.findFirst({
+            where: {
+                id,
+                userId,
+            }
+        });
+
+        if (!existingFollowUp) {
+            return res.status(404).json({ success: false, message: 'Follow-up not found' });
+        }
+
+        const updatedData: any = {};
+        if (title) updatedData.title = title;
+        if (description !== undefined) updatedData.description = description;
+        if (followUpDate) {
+            updatedData.followUpDate = new Date(followUpDate);
+            updatedData.status = computeStatus(new Date(followUpDate), existingFollowUp.status === 'COMPLETED');
+        }
+        if (priority) updatedData.priority = priority;
+        if (contextType) updatedData.contextType = contextType;
+        if (relatedRound !== undefined) updatedData.relatedRound = relatedRound;
+
+        const followUp = await prisma.followUp.update({
+            where: { id },
+            data: updatedData,
+            include: {
+                application: {
+                    select: {
+                        id: true,
+                        hiringCompany: true,
+                        jobRole: true,
+                    }
+                }
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'Follow-up updated successfully',
+            data: followUp,
+        });
+    } catch (error: any) {
+        console.error('Error updating follow-up:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to update follow-up' });
+    }
+};
+
+// Mark follow-up as complete
+export const markComplete = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { id } = req.params;
+
+        const followUp = await prisma.followUp.update({
+            where: { id },
+            data: {
+                status: 'COMPLETED',
+                completedAt: new Date(),
+            },
+            include: {
+                application: {
+                    select: {
+                        id: true,
+                        hiringCompany: true,
+                        jobRole: true,
+                    }
+                }
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'Follow-up marked as complete',
+            data: followUp,
+        });
+    } catch (error: any) {
+        console.error('Error marking follow-up as complete:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to mark follow-up as complete' });
+    }
+};
+
+// Snooze follow-up (reschedule to later date)
+export const snoozeFollowUp = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { id } = req.params;
+        const { days } = req.body; // 1, 2, or 7
+
+        const followUp = await prisma.followUp.findFirst({
+            where: { id, userId }
+        });
+
+        if (!followUp) {
+            return res.status(404).json({ success: false, message: 'Follow-up not found' });
+        }
+
+        const followUpDate = followUp.followUpDate || new Date();
+        const newDate = new Date(followUpDate);
+        newDate.setDate(newDate.getDate() + (days || 1));
+
+        const updatedFollowUp = await prisma.followUp.update({
+            where: { id },
+            data: {
+                followUpDate: newDate,
+                status: computeStatus(newDate, false),
+            },
+            include: {
+                application: {
+                    select: {
+                        id: true,
+                        hiringCompany: true,
+                        jobRole: true,
+                    }
+                }
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `Follow-up snoozed by ${days || 1} day(s)`,
+            data: updatedFollowUp,
+        });
+    } catch (error: any) {
+        console.error('Error snoozing follow-up:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to snooze follow-up' });
+    }
+};
+
+// Delete a follow-up
+export const deleteFollowUp = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { id } = req.params;
+
+        const followUp = await prisma.followUp.findFirst({
+            where: { id, userId }
+        });
+
+        if (!followUp) {
+            return res.status(404).json({ success: false, message: 'Follow-up not found' });
+        }
+
+        await prisma.followUp.delete({
+            where: { id }
+        });
+
+        res.json({
+            success: true,
+            message: 'Follow-up deleted successfully',
+        });
+    } catch (error: any) {
+        console.error('Error deleting follow-up:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to delete follow-up' });
+    }
 };

@@ -100,7 +100,7 @@ export const createInterview = async (
     if (application.currentStatus === 'SHORTLISTED' || application.currentStatus === 'APPLIED') {
         await prisma.application.update({
             where: { id: applicationId },
-            data: { currentStatus: 'INTERVIEW_SCHEDULED' },
+            data: { currentStatus: 'INTERVIEW_IN_PROGRESS' },
         });
     }
 

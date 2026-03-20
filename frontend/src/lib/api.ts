@@ -91,14 +91,30 @@ export const interviewsAPI = {
 export const followupsAPI = {
     getByApplication: (applicationId: string) =>
         api.get(`/applications/${applicationId}/followups`),
-    create: (applicationId: string, data: any) =>
-        api.post(`/applications/${applicationId}/followups`, data),
-    update: (id: string, data: any) =>
-        api.put(`/applications/followups/${id}`, data),
+    create: (applicationId: string, data: {
+        title: string;
+        description?: string;
+        followUpDate: string;
+        contextType?: string;
+        priority?: string;
+        interviewProcessId?: string;
+        relatedRound?: number;
+    }) => {
+        console.log('API create followup:', { applicationId, data });
+        return api.post(`/applications/${applicationId}/followups`, data);
+    },
+    update: (id: string, data: {
+        title?: string;
+        description?: string;
+        followUpDate?: string;
+        priority?: string;
+        contextType?: string;
+        relatedRound?: number;
+    }) => api.put(`/applications/followups/${id}`, data),
     delete: (id: string) => api.delete(`/applications/followups/${id}`),
-    getDue: () => api.get('/followups/due'),
-    addHistory: (id: string, data: any) =>
-        api.post(`/applications/followups/${id}/history`, data),
+    markComplete: (id: string) => api.patch(`/applications/followups/${id}/complete`),
+    snooze: (id: string, days: number) => api.patch(`/applications/followups/${id}/snooze`, { days }),
+    getAll: () => api.get('/applications/followups/all'),
 };
 
 // Resumes API
@@ -139,6 +155,66 @@ export const notificationsAPI = {
     markAsRead: (id: string) => api.patch(`/notifications/${id}/read`),
     markAllAsRead: () => api.patch('/notifications/read-all'),
     delete: (id: string) => api.delete(`/notifications/${id}`),
+};
+
+// Interview Process API
+export const interviewProcessAPI = {
+    start: (data: { applicationId: string; totalRounds?: number }) =>
+        api.post('/interview-process/start', data),
+    getByApplication: (applicationId: string) =>
+        api.get(`/interview-process/application/${applicationId}`),
+    addRound: (data: { interviewProcessId: string; roundName?: string; scheduledDate?: string }) =>
+        api.post('/interview-process/rounds', data),
+    updateRound: (roundId: string, data: {
+        status?: string;
+        scheduledDate?: string;
+        completedDate?: string;
+        feedback?: string;
+        rating?: number;
+        notes?: string;
+    }) => api.patch(`/interview-process/rounds/${roundId}`, data),
+    updateWaitingState: (processId: string, data: { waitingState: string; nextAction?: string }) =>
+        api.patch(`/interview-process/${processId}/waiting-state`, data),
+    delete: (processId: string) => api.delete(`/interview-process/${processId}`),
+    checkNoResponse: (days?: number) =>
+        api.post('/interview-process/check-no-response', null, { params: { days } }),
+};
+
+// Backup API
+export const backupAPI = {
+    export: () => api.get('/backup/export'),
+    import: (data: any, mode: string) => api.post('/backup/import', { data, mode }),
+};
+
+// Interview Events API - Unified system
+export const interviewEventsAPI = {
+    create: (data: {
+        applicationId: string;
+        roundNumber?: number;
+        date: string;
+        startTime?: string;
+        endTime?: string;
+        notes?: string;
+        createdFrom?: string;
+    }) => api.post('/interview-events', data),
+    getByApplication: (applicationId: string) =>
+        api.get(`/interview-events/application/${applicationId}`),
+    getAll: (params?: { startDate?: string; endDate?: string }) =>
+        api.get('/interview-events/all', { params }),
+    getByDate: (date: string) =>
+        api.get(`/interview-events/date/${date}`),
+    getNextRound: (applicationId: string) =>
+        api.get(`/interview-events/next-round/${applicationId}`),
+    update: (id: string, data: {
+        roundNumber?: number;
+        date?: string;
+        startTime?: string;
+        endTime?: string;
+        status?: string;
+        notes?: string;
+    }) => api.put(`/interview-events/${id}`, data),
+    markComplete: (id: string) => api.patch(`/interview-events/${id}/complete`),
+    delete: (id: string) => api.delete(`/interview-events/${id}`),
 };
 
 export default api;

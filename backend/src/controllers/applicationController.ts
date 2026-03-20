@@ -19,7 +19,7 @@ const applicationSchema = z.object({
     hiringCompany: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional().or(z.literal('')),
-    source: z.enum(['NAUKRI', 'LINKEDIN', 'INDEED', 'INSTAHYRE', 'REFERRAL', 'COMPANY_WEBSITE', 'OTHER']).optional(),
+    source: z.enum(['NAUKRI', 'LINKEDIN', 'INDEED', 'INSTAHYRE', 'REFERRAL', 'COMPANY_WEBSITE', 'OTHER']).optional().or(z.literal('')),
     jobRole: z.string().optional(),
     techStack: z.union([z.array(z.string()), z.string()]).optional(),
     jdReceived: z.boolean().optional(),
@@ -28,11 +28,11 @@ const applicationSchema = z.object({
     applied: z.boolean().optional(),
     appliedDate: z.string().optional(),
     resumeVersion: z.string().optional(),
-    currentStatus: z.enum(['NEW_CALL', 'JD_RECEIVED', 'APPLIED', 'SHORTLISTED', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER', 'REJECTED', 'ON_HOLD']).optional(),
+    currentStatus: z.enum(['NEW_CALL', 'JD_RECEIVED', 'APPLIED', 'SHORTLISTED', 'INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER', 'REJECTED', 'ON_HOLD']).optional(),
 });
 
 const updateStatusSchema = z.object({
-    currentStatus: z.enum(['NEW_CALL', 'JD_RECEIVED', 'APPLIED', 'SHORTLISTED', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER', 'REJECTED', 'ON_HOLD']),
+    currentStatus: z.enum(['NEW_CALL', 'JD_RECEIVED', 'APPLIED', 'SHORTLISTED', 'INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER', 'REJECTED', 'ON_HOLD']),
 });
 
 export const getApplications = async (
@@ -324,6 +324,7 @@ export const getPipelineData = async (
         JD_RECEIVED: [],
         APPLIED: [],
         SHORTLISTED: [],
+        INTERVIEW_IN_PROGRESS: [],
         INTERVIEW_SCHEDULED: [],
         INTERVIEW_COMPLETED: [],
         OFFER: [],

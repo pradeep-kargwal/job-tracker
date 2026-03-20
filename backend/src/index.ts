@@ -14,6 +14,9 @@ import resumeRoutes from './routes/resumes';
 import analyticsRoutes from './routes/analytics';
 import aiRoutes from './routes/ai';
 import notificationRoutes from './routes/notifications';
+import interviewProcessRoutes from './routes/interviewProcess';
+import interviewEventRoutes from './routes/interviewEvents';
+import backupRoutes from './routes/backup';
 
 // Import middleware
 import { errorHandler, notFound } from './middleware/errorHandler';
@@ -47,6 +50,9 @@ app.use('/api/resumes', resumeRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/interview-process', interviewProcessRoutes);
+app.use('/api/interview-events', interviewEventRoutes);
+app.use('/api/backup', backupRoutes);
 
 // Error handling
 app.use(notFound);

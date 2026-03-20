@@ -8,28 +8,38 @@ import {
     Search,
     Trash2,
     Edit,
-    Eye
+    Eye,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import { applicationsAPI } from '@/lib/api';
 import { STATUS_LABELS } from '@/lib/utils';
 
-const fetcher = () => applicationsAPI.getAll().then((res) => res.data.data);
+const ITEMS_PER_PAGE = 10;
 
 export default function ApplicationsPage() {
-    const { data, error, mutate } = useSWR('/api/applications', fetcher);
+    const [page, setPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [selectedApp, setSelectedApp] = useState<any>(null);
 
-    const applications = data || [];
+    const { data, error, mutate } = useSWR(
+        [`/api/applications`, page, ITEMS_PER_PAGE],
+        ([url, pageNum, limit]) => applicationsAPI.getAll({ page: pageNum, limit }).then((res) => res.data)
+    );
+    
+    const applications = data?.data || [];
+    const pagination = data?.pagination || { page: 1, limit: ITEMS_PER_PAGE, total: 0, totalPages: 0 };
 
+    // Client-side search and filter
     const filteredApplications = applications.filter((app: any) => {
+        const searchLower = searchTerm.toLowerCase();
         const matchesSearch =
-            app.recruiterName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            app.hiringCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            app.jobRole?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            app.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            app.email?.toLowerCase().includes(searchTerm.toLowerCase());
+            app.recruiterName?.toLowerCase().includes(searchLower) ||
+            app.hiringCompany?.toLowerCase().includes(searchLower) ||
+            app.jobRole?.toLowerCase().includes(searchLower) ||
+            app.phone?.toLowerCase().includes(searchLower) ||
+            app.email?.toLowerCase().includes(searchLower);
         const matchesStatus = !filterStatus || app.currentStatus === filterStatus;
         return matchesSearch && matchesStatus;
     });
@@ -43,6 +53,11 @@ export default function ApplicationsPage() {
             alert('Failed to delete application');
         }
     };
+
+    // Reset to page 1 when search or filter changes
+    useEffect(() => {
+        setPage(1);
+    }, [searchTerm, filterStatus]);
 
     // Helper to display tech stack
     const getTechStackDisplay = (techStack: any) => {
@@ -186,6 +201,61 @@ export default function ApplicationsPage() {
                     </table>
                 </div>
             </div>
+
+            {/* Pagination */}
+            {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-gray-600">
+                        Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} applications
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={pagination.page <= 1}
+                            className="p-2 rounded-lg border border-border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        
+                        {/* Page numbers */}
+                        <div className="flex items-center gap-1">
+                            {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                                let pageNum;
+                                if (pagination.totalPages <= 5) {
+                                    pageNum = i + 1;
+                                } else if (pagination.page <= 3) {
+                                    pageNum = i + 1;
+                                } else if (pagination.page >= pagination.totalPages - 2) {
+                                    pageNum = pagination.totalPages - 4 + i;
+                                } else {
+                                    pageNum = pagination.page - 2 + i;
+                                }
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setPage(pageNum)}
+                                        className={`w-10 h-10 rounded-lg ${
+                                            pagination.page === pageNum
+                                                ? 'bg-primary text-white'
+                                                : 'border border-border hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <button
+                            onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                            disabled={pagination.page >= pagination.totalPages}
+                            className="p-2 rounded-lg border border-border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Quick View Modal */}
             {selectedApp && (

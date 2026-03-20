@@ -16,7 +16,8 @@ import {
     Check,
     X
 } from 'lucide-react';
-import { applicationsAPI, notesAPI, interviewsAPI, followupsAPI } from '@/lib/api';
+import { applicationsAPI, notesAPI, interviewsAPI, followupsAPI, interviewEventsAPI } from '@/lib/api';
+import FollowUpTracker from '@/components/FollowUpTracker';
 import { STATUS_LABELS } from '@/lib/utils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
@@ -36,6 +37,82 @@ export default function ApplicationDetailPage() {
             setJdText(data.jdText);
         }
     }, [data]);
+
+    // Load interview events and next round number
+    useEffect(() => {
+        if (id) {
+            loadInterviewEvents();
+        }
+    }, [id]);
+
+    const loadInterviewEvents = async () => {
+        try {
+            setLoadingEvents(true);
+            const [eventsRes, roundRes] = await Promise.all([
+                interviewEventsAPI.getByApplication(id),
+                interviewEventsAPI.getNextRound(id)
+            ]);
+            setInterviewEvents(eventsRes.data.data || []);
+            setNextRound(roundRes.data.data?.nextRound || 1);
+        } catch (err) {
+            console.error('Failed to load interview events:', err);
+        } finally {
+            setLoadingEvents(false);
+        }
+    };
+
+    const handleAddInterviewEvent = async () => {
+        if (!newEvent.date) {
+            alert('Please select a date');
+            return;
+        }
+        setConflictError('');
+        try {
+            const response = await interviewEventsAPI.create({
+                applicationId: id,
+                roundNumber: nextRound,
+                date: newEvent.date,
+                startTime: newEvent.startTime || undefined,
+                endTime: newEvent.endTime || undefined,
+                notes: newEvent.notes || undefined,
+                createdFrom: 'APPLICATION_PAGE'
+            });
+            
+            if (response.data.conflict) {
+                setConflictError('You already have an interview at this time!');
+                return;
+            }
+            
+            setNewEvent({ date: '', startTime: '', endTime: '', notes: '' });
+            setShowAddEvent(false);
+            loadInterviewEvents(); // Refresh events and round number
+        } catch (err: any) {
+            if (err.response?.data?.conflict) {
+                setConflictError(err.response.data.message);
+            } else {
+                alert(err.response?.data?.message || 'Failed to add interview');
+            }
+        }
+    };
+
+    const handleMarkEventComplete = async (eventId: string) => {
+        try {
+            await interviewEventsAPI.markComplete(eventId);
+            loadInterviewEvents();
+        } catch (err) {
+            alert('Failed to mark interview as complete');
+        }
+    };
+
+    const handleDeleteEvent = async (eventId: string) => {
+        if (!confirm('Delete this interview?')) return;
+        try {
+            await interviewEventsAPI.delete(eventId);
+            loadInterviewEvents();
+        } catch (err) {
+            alert('Failed to delete interview');
+        }
+    };
 
     const [activeTab, setActiveTab] = useState<'notes' | 'interviews' | 'followups'>('notes');
     const [isEditing, setIsEditing] = useState(false);
@@ -59,6 +136,19 @@ export default function ApplicationDetailPage() {
         follow_up_date: '',
         description: ''
     });
+    
+    // Unified Interview Events state
+    const [interviewEvents, setInterviewEvents] = useState<any[]>([]);
+    const [loadingEvents, setLoadingEvents] = useState(false);
+    const [showAddEvent, setShowAddEvent] = useState(false);
+    const [newEvent, setNewEvent] = useState({
+        date: '',
+        startTime: '',
+        endTime: '',
+        notes: ''
+    });
+    const [nextRound, setNextRound] = useState(1);
+    const [conflictError, setConflictError] = useState('');
 
     if (error) {
         return (
@@ -480,6 +570,7 @@ export default function ApplicationDetailPage() {
                         <Calendar className="w-4 h-4" />
                         Interviews
                     </button>
+
                     <button
                         onClick={() => setActiveTab('followups')}
                         className={`flex items-center gap-2 px-6 py-3 text-sm font-medium ${activeTab === 'followups'
@@ -493,6 +584,149 @@ export default function ApplicationDetailPage() {
                 </div>
 
                 <div className="p-6">
+                    {activeTab === 'interviews' && (
+                        <div>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-semibold">Scheduled Interviews</h3>
+                                <button
+                                    onClick={() => setShowAddEvent(!showAddEvent)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                                >
+                                    <Calendar className="w-4 h-4" />
+                                    Add Interview
+                                </button>
+                            </div>
+
+                            {/* Add Interview Form */}
+                            {showAddEvent && (
+                                <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                                    <h4 className="font-medium mb-3">Schedule Interview - Round {nextRound}</h4>
+                                    {conflictError && (
+                                        <div className="mb-3 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+                                            ⚠️ {conflictError}
+                                        </div>
+                                    )}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                                            <input
+                                                type="date"
+                                                value={newEvent.date}
+                                                onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+                                                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                                            <input
+                                                type="time"
+                                                value={newEvent.startTime}
+                                                onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
+                                                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                                            <input
+                                                type="time"
+                                                value={newEvent.endTime}
+                                                onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
+                                                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                                            <textarea
+                                                value={newEvent.notes}
+                                                onChange={(e) => setNewEvent({ ...newEvent, notes: e.target.value })}
+                                                placeholder="Interview focus, preparation notes..."
+                                                rows={2}
+                                                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 mt-3">
+                                        <button
+                                            onClick={handleAddInterviewEvent}
+                                            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                                        >
+                                            Schedule Interview
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowAddEvent(false);
+                                                setConflictError('');
+                                            }}
+                                            className="px-4 py-2 border border-border rounded-lg hover:bg-gray-100"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Interview Events List */}
+                            {loadingEvents ? (
+                                <div className="flex justify-center py-8">
+                                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                                </div>
+                            ) : interviewEvents.length === 0 ? (
+                                <div className="text-center py-8 text-gray-500">
+                                    <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                    <p>No interviews scheduled yet</p>
+                                    <p className="text-sm">Click "Add Interview" to schedule your first interview</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {interviewEvents.map((event: any) => (
+                                        <div key={event.id} className="bg-white border border-border rounded-lg p-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-semibold text-lg">{event.title || `Round ${event.roundNumber}`}</span>
+                                                        <span className={`px-2 py-0.5 text-xs rounded-full ${
+                                                            event.status === 'SCHEDULED' ? 'bg-blue-100 text-blue-700' :
+                                                            event.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                                                            'bg-red-100 text-red-700'
+                                                        }`}>
+                                                            {event.status}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-gray-600 mt-1">
+                                                        📅 {new Date(event.date).toLocaleDateString()}
+                                                        {event.startTime && ` at ${event.startTime}`}
+                                                        {event.endTime && ` - ${event.endTime}`}
+                                                    </div>
+                                                    {event.notes && (
+                                                        <p className="text-sm text-gray-500 mt-2">{event.notes}</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {event.status === 'SCHEDULED' && (
+                                                        <button
+                                                            onClick={() => handleMarkEventComplete(event.id)}
+                                                            className="p-2 text-green-600 hover:bg-green-50 rounded"
+                                                            title="Mark Complete"
+                                                        >
+                                                            <Check className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleDeleteEvent(event.id)}
+                                                        className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {activeTab === 'notes' && (
                         <div>
                             <div className="flex gap-2 mb-4">
@@ -536,7 +770,7 @@ export default function ApplicationDetailPage() {
                         </div>
                     )}
 
-                    {activeTab === 'interviews' && (
+                    {false && (
                         <div>
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-4">
                                 <input
@@ -624,66 +858,12 @@ export default function ApplicationDetailPage() {
                     )}
 
                     {activeTab === 'followups' && (
-                        <div>
-                            <div className="space-y-3 mb-4">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                    <input
-                                        type="date"
-                                        value={newFollowup.follow_up_date}
-                                        onChange={(e) => setNewFollowup({ ...newFollowup, follow_up_date: e.target.value })}
-                                        className="px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
-                                    />
-                                    <button
-                                        onClick={handleAddFollowup}
-                                        className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
-                                    >
-                                        Add Follow-up
-                                    </button>
-                                </div>
-                                <textarea
-                                    value={newFollowup.description}
-                                    onChange={(e) => setNewFollowup({ ...newFollowup, description: e.target.value })}
-                                    placeholder="Description (notes, reason for follow-up, etc.)"
-                                    rows={3}
-                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary resize-y min-h-[80px]"
-                                />
-                            </div>
-                            <div className="space-y-3">
-                                {(!application.followups || application.followups.length === 0) ? (
-                                    <p className="text-gray-500 text-center py-4">No follow-ups yet</p>
-                                ) : (
-                                    application.followups.map((followup: any) => (
-                                        <div key={followup.id} className="p-4 bg-gray-50 rounded-lg">
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex-1">
-                                                    <p className="font-medium">{followup.responseNotes || followup.description || 'No description'}</p>
-                                                    <p className="text-sm text-gray-500">
-                                                        Due: {followup.followUpDate || followup.follow_up_date ? new Date(followup.followUpDate || followup.follow_up_date).toLocaleDateString() : 'Not set'}
-                                                    </p>
-                                                    <p className="text-sm text-gray-500">
-                                                        Type: {followup.followUpType || followup.follow_up_type || 'Email'}
-                                                    </p>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`px-2 py-1 text-xs rounded ${followup.responseStatus === 'RESPONDED' ? 'bg-green-100 text-green-800' :
-                                                        followup.responseStatus === 'NO_RESPONSE' ? 'bg-red-100 text-red-800' :
-                                                            'bg-yellow-100 text-yellow-800'
-                                                        }`}>
-                                                        {followup.responseStatus || 'PENDING'}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => handleDeleteFollowup(followup.id)}
-                                                        className="text-gray-400 hover:text-red-600"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
+                        <FollowUpTracker 
+                            applicationId={id || ''} 
+                            interviewProcessId={application?.interviewProcesses?.[0]?.id || null}
+                            currentRound={application?.interviewProcesses?.[0]?.roundsCompleted || undefined}
+                            onStatusChange={() => mutate()}
+                        />
                     )}
                 </div>
             </div>

@@ -23,6 +23,8 @@ model User {
   followupHistory FollowupHistory[]
   resumes      Resume[]
   notifications Notification[]
+  interviewProcesses InterviewProcess[]
+  interviewEvents InterviewEvent[]
 
   @@map("users")
 }
@@ -63,6 +65,8 @@ model Application {
   notes           Note[]
   interviews      Interview[]
   followups       FollowUp[]
+  interviewProcesses InterviewProcess[]
+  interviewEvents InterviewEvent[]
   
   @@index([userId])
   @@index([currentStatus])
@@ -107,6 +111,42 @@ model Interview {
   @@map("interviews")
 }
 
+// Unified Interview Event - Single Source of Truth for all interviews
+model InterviewEvent {
+  id              String            @id @default(uuid())
+  applicationId   String            @map("application_id")
+  application     Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId          String            @map("user_id")
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Round info
+  roundNumber     Int               @default(1) @map("round_number")
+  title           String            // e.g., "Google - Round 1"
+  
+  // Date and Time
+  date            DateTime          @map("date")
+  startTime       String?           @map("start_time") // HH:mm format
+  endTime         String?           @map("end_time")   // HH:mm format
+  
+  // Status
+  status          String            @default("SCHEDULED") @map("status") // SCHEDULED, COMPLETED, CANCELLED
+  
+  // Notes
+  notes           String?
+  
+  // Source tracking
+  createdFrom     String            @default("APPLICATION_PAGE") @map("created_from") // APPLICATION_PAGE, CALENDAR_PAGE
+  
+  // Timestamps
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  
+  @@index([applicationId])
+  @@index([userId])
+  @@index([date])
+  @@map("interview_events")
+}
+
 model FollowUp {
   id              String        @id @default(uuid())
   applicationId   String        @map("application_id")
@@ -114,20 +154,44 @@ model FollowUp {
   userId          String        @map("user_id")
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   
+  // Link to Interview Process (optional)
+  interviewProcessId String?    @map("interview_process_id")
+  interviewProcess   InterviewProcess? @relation(fields: [interviewProcessId], references: [id], onDelete: Cascade)
+  
+  // Context
+  contextType     String        @default("GENERAL") @map("context_type") // GENERAL, AFTER_INTERVIEW, NO_RESPONSE, OFFER_DISCUSSION
+  title           String
+  description     String?
+  
+  // Date
+  followUpDate    DateTime      @map("follow_up_date")
+  
+  // Status (computed dynamically, but stored for quick access)
+  status          String        @default("UPCOMING") // UPCOMING, DUE, COMPLETED, MISSED
+  
+  // Priority
+  priority        String        @default("MEDIUM") @map("priority") // LOW, MEDIUM, HIGH
+  
+  // Related round number (for interview context)
+  relatedRound    Int?          @map("related_round")
+  
+  // Legacy fields (kept for backward compatibility)
   followUpRequired Boolean       @default(true) @map("follow_up_required")
-  followUpDate    DateTime?    @map("follow_up_date")
-  followUpType    String?  @map("follow_up_type")
-  responseStatus  String   @default("PENDING") @map("response_status")
+  followUpType    String?       @map("follow_up_type")
+  responseStatus  String        @default("PENDING") @map("response_status")
   responseNotes   String?       @map("response_notes")
   
+  // Timestamps
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
+  completedAt     DateTime?     @map("completed_at")
   
   history         FollowupHistory[]
   
   @@index([applicationId])
   @@index([userId])
   @@index([followUpDate])
+  @@index([status])
   @@map("followups")
 }
 
@@ -182,4 +246,69 @@ model Notification {
   @@index([userId])
   @@index([isRead])
   @@map("notifications")
+}
+
+// Interview Process - tracks the overall interview process for an application
+model InterviewProcess {
+  id              String            @id @default(uuid())
+  applicationId   String            @map("application_id")
+  application     Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId          String            @map("user_id")
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Status
+  status          String            @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED
+  waitingState    String            @default("NONE") // NONE, AWAITING_INTERVIEW, AWAITING_NEXT_ROUND, AWAITING_FEEDBACK, NO_RESPONSE
+  
+  // Round tracking
+  roundsCompleted Int               @default(0) @map("rounds_completed")
+  totalRounds     Int?              @map("total_rounds")
+  
+  // Activity tracking
+  lastActivityDate DateTime?        @map("last_activity_date")
+  nextAction      String?           @map("next_action")
+  
+  // Timestamps
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  
+  // Relations
+  rounds          InterviewRound[]
+  followups       FollowUp[]
+  
+  @@index([applicationId])
+  @@index([userId])
+  @@map("interview_processes")
+}
+
+// Interview Round - individual rounds within an interview process
+model InterviewRound {
+  id                  String            @id @default(uuid())
+  interviewProcessId   String            @map("interview_process_id")
+  interviewProcess     InterviewProcess  @relation(fields: [interviewProcessId], references: [id], onDelete: Cascade)
+  
+  // Round info
+  roundNumber         Int               @map("round_number")
+  roundName           String?           @map("round_name") // e.g., "Technical", "HR", "Manager"
+  
+  // Status
+  status              String            @default("NOT_SCHEDULED") // NOT_SCHEDULED, SCHEDULED, COMPLETED, CANCELLED
+  
+  // Dates
+  scheduledDate       DateTime?         @map("scheduled_date")
+  completedDate       DateTime?         @map("completed_date")
+  
+  // Feedback
+  feedback            String?
+  rating             Int?
+  
+  // Notes
+  notes              String?
+  
+  // Timestamps
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  
+  @@index([interviewProcessId])
+  @@map("interview_rounds")
 }

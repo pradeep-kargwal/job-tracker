@@ -14,6 +14,8 @@ import {
     X,
     Briefcase,
     Sparkles,
+    Calendar,
+    Settings,
 } from 'lucide-react';
 import { authAPI } from '@/lib/api';
 
@@ -21,9 +23,11 @@ const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Applications', href: '/dashboard/applications', icon: Briefcase },
     { name: 'Pipeline', href: '/dashboard/pipeline', icon: Kanban },
+    { name: 'Interviews', href: '/dashboard/interviews', icon: Calendar },
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
     { name: 'Resumes', href: '/dashboard/resumes', icon: FileText },
     { name: 'AI Features', href: '/dashboard/ai', icon: Sparkles },
+    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export default function DashboardLayout({
