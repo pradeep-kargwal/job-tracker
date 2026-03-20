@@ -21,7 +21,7 @@ const applicationSchema = z.object({
     email: z.string().email().optional().or(z.literal('')),
     source: z.enum(['NAUKRI', 'LINKEDIN', 'INDEED', 'INSTAHYRE', 'REFERRAL', 'COMPANY_WEBSITE', 'OTHER']).optional(),
     jobRole: z.string().optional(),
-    techStack: z.array(z.string()).optional(),
+    techStack: z.union([z.array(z.string()), z.string()]).optional(),
     jdReceived: z.boolean().optional(),
     jdLink: z.string().optional(),
     jdText: z.string().optional(),
@@ -372,7 +372,7 @@ export const uploadJdFile = async (
         where: { id },
         data: {
             jdFilePath: req.file.path,
-            jdFileName: req.file.originalname,
+            jdFileName: req.file.originalname as any,
             jdReceived: true,
         },
         include: {
