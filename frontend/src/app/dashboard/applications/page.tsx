@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { applicationsAPI } from '@/lib/api';
 import { STATUS_LABELS } from '@/lib/utils';
+import ApplicationQuickView from '@/components/ApplicationQuickView';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -181,7 +182,7 @@ export default function ApplicationsPage() {
                                                     <Eye className="w-4 h-4" />
                                                 </button>
                                                 <Link
-                                                    href={`/dashboard/applications/${app.id}`}
+                                                    href={`/dashboard/applications/new?id=${app.id}`}
                                                     className="p-1 text-gray-400 hover:text-primary"
                                                 >
                                                     <Edit className="w-4 h-4" />
@@ -257,126 +258,12 @@ export default function ApplicationsPage() {
                 </div>
             )}
 
-            {/* Quick View Modal */}
+            {/* Quick View Modal - Modern ApplicationQuickView Component */}
             {selectedApp && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="p-6">
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-bold">Application Details</h2>
-                                <button
-                                    onClick={() => setSelectedApp(null)}
-                                    className="text-gray-400 hover:text-gray-600 text-2xl"
-                                >
-                                    &times;
-                                </button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <p className="text-sm text-gray-500">Job Role</p>
-                                    <p className="font-medium">{selectedApp.jobRole || '-'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Company</p>
-                                    <p className="font-medium">{selectedApp.hiringCompany || '-'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Status</p>
-                                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${selectedApp.currentStatus === 'OFFER' ? 'bg-green-100 text-green-800' :
-                                        selectedApp.currentStatus === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                                            selectedApp.currentStatus === 'INTERVIEW_SCHEDULED' ? 'bg-blue-100 text-blue-800' :
-                                                selectedApp.currentStatus === 'SHORTLISTED' ? 'bg-purple-100 text-purple-800' :
-                                                    selectedApp.currentStatus === 'APPLIED' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-gray-100 text-gray-800'}`}>
-                                        {STATUS_LABELS[selectedApp.currentStatus] || selectedApp.currentStatus}
-                                    </span>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Source</p>
-                                    <p className="font-medium">{selectedApp.source || '-'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Applied Date</p>
-                                    <p className="font-medium">{selectedApp.appliedDate ? new Date(selectedApp.appliedDate).toLocaleDateString() : '-'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Applied</p>
-                                    <p className="font-medium">{selectedApp.applied ? 'Yes' : 'No'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">JD Received</p>
-                                    <p className="font-medium">{selectedApp.jdReceived ? 'Yes' : 'No'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Resume Version</p>
-                                    <p className="font-medium">{selectedApp.resumeVersion || '-'}</p>
-                                </div>
-                                {selectedApp.recruiterName && (
-                                    <>
-                                        <div>
-                                            <p className="text-sm text-gray-500">Recruiter Name</p>
-                                            <p className="font-medium">{selectedApp.recruiterName}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-gray-500">Recruiter Company</p>
-                                            <p className="font-medium">{selectedApp.recruiterCompany || '-'}</p>
-                                        </div>
-                                    </>
-                                )}
-                                {selectedApp.phone && (
-                                    <div>
-                                        <p className="text-sm text-gray-500">Phone</p>
-                                        <p className="font-medium">{selectedApp.phone}</p>
-                                    </div>
-                                )}
-                                {selectedApp.email && (
-                                    <div>
-                                        <p className="text-sm text-gray-500">Email</p>
-                                        <p className="font-medium">{selectedApp.email}</p>
-                                    </div>
-                                )}
-                                {selectedApp.jdLink && (
-                                    <div className="md:col-span-2">
-                                        <p className="text-sm text-gray-500">JD Link</p>
-                                        <a
-                                            href={selectedApp.jdLink}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-primary hover:underline"
-                                        >
-                                            {selectedApp.jdLink}
-                                        </a>
-                                    </div>
-                                )}
-                                {selectedApp.techStack && selectedApp.techStack.length > 0 && (
-                                    <div className="md:col-span-2">
-                                        <p className="text-sm text-gray-500">Tech Stack</p>
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                            {Array.isArray(selectedApp.techStack)
-                                                ? selectedApp.techStack.map((tech: string, idx: number) => (
-                                                    <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                                                        {tech}
-                                                    </span>
-                                                ))
-                                                : <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                                                    {selectedApp.techStack}
-                                                </span>
-                                            }
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="mt-6 flex justify-end">
-                                <Link
-                                    href={`/dashboard/applications/${selectedApp.id}`}
-                                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
-                                >
-                                    View Full Details
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <ApplicationQuickView 
+                    application={selectedApp} 
+                    onClose={() => setSelectedApp(null)} 
+                />
             )}
         </div>
     );

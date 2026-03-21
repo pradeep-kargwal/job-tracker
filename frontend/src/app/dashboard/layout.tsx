@@ -11,7 +11,6 @@ import {
     Bell,
     LogOut,
     Menu,
-    X,
     Briefcase,
     Sparkles,
     Calendar,
@@ -38,6 +37,10 @@ export default function DashboardLayout({
     const router = useRouter();
     const pathname = usePathname();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    
+    // Hide sidebar on application detail page (paths like /dashboard/applications/[id])
+    const isApplicationDetailPage = pathname?.match(/^\/dashboard\/applications\/[^/]+$/);
+    const hideSidebar = !!isApplicationDetailPage;
     const [user, setUser] = useState<{ name?: string; email: string } | null>(null);
 
     useEffect(() => {
@@ -110,6 +113,7 @@ export default function DashboardLayout({
             )}
 
             {/* Desktop sidebar */}
+            {!hideSidebar && (
             <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:w-64 lg:block">
                 <div className="flex flex-col h-full bg-white border-r border-border">
                     <div className="p-6 border-b border-border">
@@ -156,9 +160,10 @@ export default function DashboardLayout({
                     </div>
                 </div>
             </div>
+            )}
 
             {/* Main content */}
-            <div className="lg:pl-64">
+            <div className={hideSidebar ? '' : 'lg:pl-64'} >
                 {/* Mobile header */}
                 <div className="lg:hidden sticky top-0 z-30 bg-white border-b border-border">
                     <div className="flex items-center justify-between px-4 py-3">

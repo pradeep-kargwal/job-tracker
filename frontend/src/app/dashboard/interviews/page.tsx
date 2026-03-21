@@ -113,7 +113,8 @@ export default function InterviewsCalendarPage() {
     // Get all events for a specific date
     const getEventsForDate = (dateStr: string) => {
         return events.filter(e => {
-            const eventDate = new Date(e.date).toISOString().split('T')[0];
+            // Use local date to match user's timezone
+            const eventDate = new Date(e.date).toLocaleDateString('en-CA');
             return eventDate === dateStr;
         });
     };
