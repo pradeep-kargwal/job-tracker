@@ -42,15 +42,6 @@ const SOURCES = [
     { value: 'OTHER', label: 'Other' },
 ];
 
-// Common tech stacks for suggestions
-const TECH_STACK_SUGGESTIONS = [
-    'React', 'Node.js', 'TypeScript', 'JavaScript', 'Python', 'Java',
-    'AWS', 'Docker', 'Kubernetes', 'PostgreSQL', 'MongoDB', 'GraphQL',
-    'REST API', 'Git', 'CI/CD', 'Express', 'Next.js', 'Vue.js',
-    'Angular', 'Spring Boot', 'Django', 'Flask', 'Golang', 'Rust',
-    'Redis', 'Elasticsearch', 'Kafka', 'Microservices', 'System Design'
-];
-
 // Sample company names for autocomplete (in real app, this would come from API)
 const SAMPLE_COMPANIES = [
     'Google', 'Microsoft', 'Amazon', 'Meta', 'Apple', 'Netflix',
@@ -85,15 +76,13 @@ export default function NewApplicationPage() {
         phone: '',
         email: '',
         source: 'LINKEDIN',
-        tech_stack: [] as string[],
+        tech_stack: '',
         current_status: 'APPLIED',
     });
 
     // UI State
     const [recruiterExpanded, setRecruiterExpanded] = useState(false);
-    const [techStackInput, setTechStackInput] = useState('');
     const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
-    const [showTechSuggestions, setShowTechSuggestions] = useState(false);
     const [companySuggestions, setCompanySuggestions] = useState<CompanySuggestion[]>([]);
 
     // Smart Actions State
@@ -101,11 +90,12 @@ export default function NewApplicationPage() {
     const [addFollowup, setAddFollowup] = useState(false);
     const [interviewDate, setInterviewDate] = useState('');
     const [interviewTime, setInterviewTime] = useState('');
+    const [interviewEndTime, setInterviewEndTime] = useState('');
+    const [interviewNotes, setInterviewNotes] = useState('');
     const [followupDays, setFollowupDays] = useState('3');
 
     // Refs for outside click detection
     const companyInputRef = useRef<HTMLInputElement>(null);
-    const techInputRef = useRef<HTMLInputElement>(null);
 
     // Fetch application data for edit mode
     useEffect(() => {
@@ -117,13 +107,13 @@ export default function NewApplicationPage() {
                     const app = response.data.data || response.data;
                     
                     if (app) {
-                        // Parse tech stack from string to array
-                        let techStackArray: string[] = [];
+                        // Tech stack as string (paragraph)
+                        let techStackValue = '';
                         if (app.techStack) {
-                            if (Array.isArray(app.techStack)) {
-                                techStackArray = app.techStack;
-                            } else if (typeof app.techStack === 'string') {
-                                techStackArray = app.techStack.split(',').map((s: string) => s.trim());
+                            if (typeof app.techStack === 'string') {
+                                techStackValue = app.techStack;
+                            } else if (Array.isArray(app.techStack)) {
+                                techStackValue = app.techStack.join('\n');
                             }
                         }
                         
@@ -135,7 +125,7 @@ export default function NewApplicationPage() {
                             phone: app.phone || '',
                             email: app.email || '',
                             source: app.source || 'LINKEDIN',
-                            tech_stack: techStackArray,
+                            tech_stack: techStackValue,
                             current_status: app.currentStatus || 'APPLIED',
                         });
                         
@@ -169,28 +159,13 @@ export default function NewApplicationPage() {
         }
     }, [formData.hiring_company]);
 
-    // Filter tech stack suggestions
-    useEffect(() => {
-        if (techStackInput.length > 0 && !formData.tech_stack.includes(techStackInput)) {
-            const filtered = TECH_STACK_SUGGESTIONS
-                .filter(t => t.toLowerCase().includes(techStackInput.toLowerCase()) && 
-                            !formData.tech_stack.includes(t))
-                .slice(0, 5);
-            setShowTechSuggestions(filtered.length > 0);
-        } else {
-            setShowTechSuggestions(false);
-        }
-    }, [techStackInput, formData.tech_stack]);
-
     // Close dropdowns on outside click
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (companyInputRef.current && !companyInputRef.current.contains(e.target as Node)) {
                 setShowCompanySuggestions(false);
             }
-            if (techInputRef.current && !techInputRef.current.contains(e.target as Node)) {
-                setShowTechSuggestions(false);
-            }
+
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -209,35 +184,6 @@ export default function NewApplicationPage() {
             .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
             .join(' ');
         setFormData(prev => ({ ...prev, job_role: value }));
-    };
-
-    // Add tech stack tag
-    const addTechStack = (tech: string) => {
-        const cleaned = tech.trim();
-        if (cleaned && !formData.tech_stack.includes(cleaned)) {
-            setFormData(prev => ({
-                ...prev,
-                tech_stack: [...prev.tech_stack, cleaned]
-            }));
-        }
-        setTechStackInput('');
-        setShowTechSuggestions(false);
-    };
-
-    // Remove tech stack tag
-    const removeTechStack = (tech: string) => {
-        setFormData(prev => ({
-            ...prev,
-            tech_stack: prev.tech_stack.filter(t => t !== tech)
-        }));
-    };
-
-    // Handle tech stack input key press
-    const handleTechStackKeyPress = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && techStackInput.trim()) {
-            e.preventDefault();
-            addTechStack(techStackInput);
-        }
     };
 
     // Handle company suggestion selection
@@ -280,7 +226,7 @@ export default function NewApplicationPage() {
             email: formData.email || undefined,
             source: formData.source,
             jobRole: formData.job_role,
-            techStack: formData.tech_stack.length > 0 ? formData.tech_stack : undefined,
+            techStack: formData.tech_stack?.trim() ? formData.tech_stack : undefined,
             currentStatus: formData.current_status,
             applied: ['APPLIED', 'SHORTLISTED', 'INTERVIEW_IN_PROGRESS', 'OFFER'].includes(formData.current_status),
             appliedDate: ['APPLIED', 'SHORTLISTED', 'INTERVIEW_IN_PROGRESS', 'OFFER'].includes(formData.current_status) 
@@ -288,6 +234,7 @@ export default function NewApplicationPage() {
                 : undefined,
             jdReceived: formData.current_status !== 'NEW_CALL',
         };
+        console.log('Submitting application with data:', apiData);
 
         try {
             let applicationId = editId;
@@ -298,7 +245,9 @@ export default function NewApplicationPage() {
             } else {
                 // Create new application
                 const appResponse = await applicationsAPI.create(apiData);
-                applicationId = appResponse.data.application?.id || appResponse.data.id;
+                // Backend returns { success, message, data: application } or direct application
+                // Try both structures to be safe
+                applicationId = appResponse.data?.data?.id || appResponse.data?.id;
             }
             
             // If interview toggle is on, create interview event
@@ -312,8 +261,8 @@ export default function NewApplicationPage() {
                     roundNumber: 1,
                     date: dateStr,
                     startTime: interviewTime || '10:00',
-                    endTime: interviewTime ? `${parseInt(interviewTime.split(':')[0]) + 1}:${interviewTime.split(':')[1]}` : '11:00',
-                    notes: `${formData.job_role} at ${formData.hiring_company}`,
+                    endTime: interviewEndTime || (interviewTime ? `${parseInt(interviewTime.split(':')[0]) + 1}:${interviewTime.split(':')[1]}` : '11:00'),
+                    notes: interviewNotes || `${formData.job_role} at ${formData.hiring_company}`,
                     createdFrom: 'APPLICATION_PAGE',
                 });
                 
@@ -341,13 +290,20 @@ export default function NewApplicationPage() {
 
             setSuccess(true);
             
-            // Redirect after short delay
+            // Redirect after short delay to the application detail page
+            // Redirect to the application detail page or back to list if no ID
             setTimeout(() => {
-                router.push('/dashboard/applications');
+                if (applicationId) {
+                    router.push(`/dashboard/applications/${applicationId}`);
+                } else {
+                    router.push('/dashboard/applications');
+                }
             }, 1000);
             
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to create application');
+            console.error('Create application error:', err);
+            const errorMessage = err.response?.data?.message || err.message || 'Failed to create application';
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -585,59 +541,17 @@ export default function NewApplicationPage() {
                                 </div>
                             </div>
 
-                            {/* Tech Stack - Tag Input */}
-                            <div className="relative" ref={techInputRef}>
+                            {/* Tech Stack - Paragraph/Textarea */}
+                            <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">Tech Stack</label>
-                                <div className="border-2 border-gray-200 rounded-xl focus-within:border-green-500 focus-within:ring-4 focus-within:ring-green-100 transition-all bg-white">
-                                    {/* Selected Tags */}
-                                    <div className="flex flex-wrap gap-2 p-3">
-                                        {formData.tech_stack.map((tech, idx) => (
-                                            <span
-                                                key={idx}
-                                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium"
-                                            >
-                                                {tech}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeTechStack(tech)}
-                                                    className="hover:bg-green-200 rounded-full p-0.5 transition-colors"
-                                                >
-                                                    <X className="w-3 h-3" />
-                                                </button>
-                                            </span>
-                                        ))}
-                                        <input
-                                            type="text"
-                                            value={techStackInput}
-                                            onChange={(e) => setTechStackInput(e.target.value)}
-                                            onKeyDown={handleTechStackKeyPress}
-                                            onFocus={() => techStackInput && setShowTechSuggestions(true)}
-                                            className="flex-1 min-w-[120px] outline-none text-sm py-1.5 bg-transparent placeholder:text-gray-400"
-                                            placeholder={formData.tech_stack.length === 0 ? "e.g., React, Node.js, AWS (press Enter)" : "Add more..."}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Tech Stack Suggestions */}
-                                {showTechSuggestions && (
-                                    <div className="absolute z-30 w-full mt-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-                                        {TECH_STACK_SUGGESTIONS
-                                            .filter(t => t.toLowerCase().includes(techStackInput.toLowerCase()) && 
-                                                        !formData.tech_stack.includes(t))
-                                            .slice(0, 5)
-                                            .map((tech, idx) => (
-                                                <button
-                                                    key={idx}
-                                                    type="button"
-                                                    onClick={() => addTechStack(tech)}
-                                                    className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors flex items-center gap-3"
-                                                >
-                                                    <Plus className="w-4 h-4 text-gray-400" />
-                                                    <span className="text-gray-700">{tech}</span>
-                                                </button>
-                                            ))}
-                                    </div>
-                                )}
+                                <textarea
+                                    value={formData.tech_stack}
+                                    onChange={(e) => setFormData({ ...formData, tech_stack: e.target.value })}
+                                    rows={4}
+                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 outline-none transition-all resize-none"
+                                    placeholder="Enter your tech skills, technologies, and tools...&#10;e.g.,&#10;React, Node.js, TypeScript&#10;AWS, Docker, Kubernetes&#10;PostgreSQL, MongoDB"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Write each skill on a new line or separate with commas</p>
                             </div>
                         </div>
                     </section>
@@ -736,24 +650,60 @@ export default function NewApplicationPage() {
                                 </label>
                                 
                                 {addInterview && (
-                                    <div className="mt-4 pt-4 border-t border-cyan-200 grid grid-cols-2 gap-4 animate-in slide-in-from-top-2">
+                                    <div className="mt-4 pt-4 border-t border-cyan-200 space-y-4 animate-in slide-in-from-top-2">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                                                <input
+                                                    type="date"
+                                                    value={interviewDate}
+                                                    onChange={(e) => setInterviewDate(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                                                <input
+                                                    type="time"
+                                                    value={interviewTime}
+                                                    onChange={(e) => setInterviewTime(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                                                <input
+                                                    type="time"
+                                                    value={interviewEndTime}
+                                                    onChange={(e) => setInterviewEndTime(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none"
+                                                />
+                                            </div>
+                                        </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                                             <input
-                                                type="date"
-                                                value={interviewDate}
-                                                onChange={(e) => setInterviewDate(e.target.value)}
+                                                type="text"
+                                                value={interviewNotes}
+                                                onChange={(e) => setInterviewNotes(e.target.value)}
+                                                placeholder="Interview focus, preparation notes..."
                                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none"
                                             />
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
-                                            <input
-                                                type="time"
-                                                value={interviewTime}
-                                                onChange={(e) => setInterviewTime(e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 outline-none"
-                                            />
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setAddInterview(false);
+                                                    setInterviewDate('');
+                                                    setInterviewTime('');
+                                                    setInterviewEndTime('');
+                                                    setInterviewNotes('');
+                                                }}
+                                                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-gray-700"
+                                            >
+                                                Cancel
+                                            </button>
                                         </div>
                                     </div>
                                 )}

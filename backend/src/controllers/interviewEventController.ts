@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { exportToDesktop } from './backupController';
 
 const prisma = new PrismaClient() as any;
 
@@ -75,6 +76,12 @@ export const createInterviewEvent = async (req: Request, res: Response) => {
 
         // Update InterviewProcess status if exists
         await updateInterviewProcessOnEvent(applicationId, userId);
+
+        // Auto-export to Desktop in background
+        const userEmail = (req as any).user.email;
+        exportToDesktop(userId, userEmail).catch(err => 
+            console.error('[AutoBackup] Failed to export:', err)
+        );
 
         res.status(201).json({
             success: true,

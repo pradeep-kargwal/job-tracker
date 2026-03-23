@@ -11,9 +11,21 @@ import {
     Trash2,
     Edit3,
     X,
-    ChevronRight
+    ChevronDown,
+    MessageSquare,
+    History
 } from 'lucide-react';
 import { followupsAPI } from '@/lib/api';
+
+interface FollowUpHistory {
+    id: string;
+    followupId: string;
+    userId: string;
+    actionDate: string;
+    actionType: string;
+    responseReceived: string | null;
+    notes: string | null;
+}
 
 interface FollowUp {
     id: string;
@@ -27,6 +39,7 @@ interface FollowUp {
     relatedRound: number | null;
     interviewProcessId: string | null;
     computedStatus: string;
+    history?: FollowUpHistory[];
     application: {
         id: string;
         hiringCompany: string | null;
@@ -67,6 +80,20 @@ export default function FollowUpTracker({
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     
+    // Modals
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [showCompleteModal, setShowCompleteModal] = useState(false);
+    const [selectedFollowUp, setSelectedFollowUp] = useState<FollowUp | null>(null);
+    
+    // Modal form state
+    const [updateForm, setUpdateForm] = useState({
+        notes: '',
+        newFollowUpDate: '',
+    });
+    const [completeForm, setCompleteForm] = useState({
+        notes: '',
+    });
+    
     // Form state
     const [formData, setFormData] = useState({
         title: '',
@@ -74,7 +101,7 @@ export default function FollowUpTracker({
         followUpDate: '',
         contextType: 'GENERAL',
         priority: 'MEDIUM',
-        quickDays: 2, // Default to 2 days
+        quickDays: 2,
     });
 
     useEffect(() => {
@@ -82,9 +109,12 @@ export default function FollowUpTracker({
     }, [applicationId]);
 
     const fetchFollowUps = async () => {
+        console.log('[FollowUpTracker] Fetching follow-ups for application:', applicationId);
         try {
             const response = await followupsAPI.getByApplication(applicationId);
+            console.log('[FollowUpTracker] API Response:', response.data);
             if (response.data.success) {
+                console.log('[FollowUpTracker] Setting follow-ups:', response.data.data);
                 setFollowUps(response.data.data);
             }
         } catch (error) {
@@ -171,6 +201,40 @@ export default function FollowUpTracker({
         }
     };
 
+    const handleMarkCompleteWithNote = async () => {
+        if (!selectedFollowUp) return;
+        try {
+            await followupsAPI.markCompleteWithNote(selectedFollowUp.id, completeForm.notes || undefined);
+            setShowCompleteModal(false);
+            setCompleteForm({ notes: '' });
+            setSelectedFollowUp(null);
+            fetchFollowUps();
+            onStatusChange?.();
+        } catch (error) {
+            console.error('Error marking complete:', error);
+            alert('Failed to mark as complete');
+        }
+    };
+
+    const handleAddUpdate = async () => {
+        if (!selectedFollowUp) return;
+        try {
+            await followupsAPI.addUpdate(
+                selectedFollowUp.id, 
+                updateForm.notes, 
+                updateForm.newFollowUpDate || undefined
+            );
+            setShowUpdateModal(false);
+            setUpdateForm({ notes: '', newFollowUpDate: '' });
+            setSelectedFollowUp(null);
+            fetchFollowUps();
+            onStatusChange?.();
+        } catch (error) {
+            console.error('Error adding update:', error);
+            alert('Failed to add update');
+        }
+    };
+
     const handleSnooze = async (id: string, days: number) => {
         try {
             await followupsAPI.snooze(id, days);
@@ -203,6 +267,18 @@ export default function FollowUpTracker({
         });
         setEditingId(followUp.id);
         setShowAddForm(true);
+    };
+
+    const openUpdateModal = (followUp: FollowUp) => {
+        setSelectedFollowUp(followUp);
+        setUpdateForm({ notes: '', newFollowUpDate: '' });
+        setShowUpdateModal(true);
+    };
+
+    const openCompleteModal = (followUp: FollowUp) => {
+        setSelectedFollowUp(followUp);
+        setCompleteForm({ notes: '' });
+        setShowCompleteModal(true);
     };
 
     const resetForm = () => {
@@ -238,11 +314,15 @@ export default function FollowUpTracker({
     // Ensure followUps is an array
     const safeFollowUps = Array.isArray(followUps) ? followUps : [];
 
+    console.log('[FollowUpTracker] safeFollowUps:', safeFollowUps.length);
+
     // Group follow-ups by computed status
     const dueToday = safeFollowUps.filter(f => f.computedStatus === 'DUE');
     const upcoming = safeFollowUps.filter(f => f.computedStatus === 'UPCOMING');
     const missed = safeFollowUps.filter(f => f.computedStatus === 'MISSED');
     const completed = safeFollowUps.filter(f => f.computedStatus === 'COMPLETED');
+
+    console.log('[FollowUpTracker] Groups - dueToday:', dueToday.length, 'upcoming:', upcoming.length, 'missed:', missed.length, 'completed:', completed.length);
 
     if (loading) {
         return <div className="p-4 text-gray-500">Loading follow-ups...</div>;
@@ -379,7 +459,8 @@ export default function FollowUpTracker({
                             <FollowUpCard 
                                 key={followUp.id} 
                                 followUp={followUp}
-                                onMarkComplete={handleMarkComplete}
+                                onMarkComplete={() => openCompleteModal(followUp)}
+                                onAddUpdate={() => openUpdateModal(followUp)}
                                 onSnooze={handleSnooze}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
@@ -402,7 +483,8 @@ export default function FollowUpTracker({
                             <FollowUpCard 
                                 key={followUp.id} 
                                 followUp={followUp}
-                                onMarkComplete={handleMarkComplete}
+                                onMarkComplete={() => openCompleteModal(followUp)}
+                                onAddUpdate={() => openUpdateModal(followUp)}
                                 onSnooze={handleSnooze}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
@@ -425,7 +507,8 @@ export default function FollowUpTracker({
                             <FollowUpCard 
                                 key={followUp.id} 
                                 followUp={followUp}
-                                onMarkComplete={handleMarkComplete}
+                                onMarkComplete={() => openCompleteModal(followUp)}
+                                onAddUpdate={() => openUpdateModal(followUp)}
                                 onSnooze={handleSnooze}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
@@ -448,7 +531,8 @@ export default function FollowUpTracker({
                             <FollowUpCard 
                                 key={followUp.id} 
                                 followUp={followUp}
-                                onMarkComplete={handleMarkComplete}
+                                onMarkComplete={() => {}}
+                                onAddUpdate={() => {}}
                                 onSnooze={handleSnooze}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
@@ -467,6 +551,113 @@ export default function FollowUpTracker({
                     <p className="text-xs">Add a follow-up to track your communications</p>
                 </div>
             )}
+
+            {/* Add Update Modal */}
+            {showUpdateModal && selectedFollowUp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowUpdateModal(false)} />
+                    <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Add Update</h3>
+                            <button
+                                onClick={() => setShowUpdateModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                    Update Note
+                                </label>
+                                <textarea
+                                    value={updateForm.notes}
+                                    onChange={(e) => setUpdateForm({ ...updateForm, notes: e.target.value })}
+                                    placeholder="What progress have you made?"
+                                    rows={3}
+                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                    Reschedule (Optional)
+                                </label>
+                                <input
+                                    type="date"
+                                    value={updateForm.newFollowUpDate}
+                                    onChange={(e) => setUpdateForm({ ...updateForm, newFollowUpDate: e.target.value })}
+                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Leave empty to keep the current due date
+                                </p>
+                            </div>
+                            <div className="flex gap-2 justify-end pt-2">
+                                <button
+                                    onClick={() => setShowUpdateModal(false)}
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAddUpdate}
+                                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
+                                >
+                                    Add Update
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Mark Complete Modal */}
+            {showCompleteModal && selectedFollowUp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowCompleteModal(false)} />
+                    <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Mark as Complete</h3>
+                            <button
+                                onClick={() => setShowCompleteModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                    Completion Note (Optional)
+                                </label>
+                                <textarea
+                                    value={completeForm.notes}
+                                    onChange={(e) => setCompleteForm({ ...completeForm, notes: e.target.value })}
+                                    placeholder="What was the outcome? (e.g., Got response, Moved to next round, etc.)"
+                                    rows={3}
+                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+                            <div className="flex gap-2 justify-end pt-2">
+                                <button
+                                    onClick={() => setShowCompleteModal(false)}
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleMarkCompleteWithNote}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                                >
+                                    <Check className="w-4 h-4" />
+                                    Mark Complete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -475,6 +666,7 @@ export default function FollowUpTracker({
 function FollowUpCard({ 
     followUp, 
     onMarkComplete, 
+    onAddUpdate,
     onSnooze, 
     onEdit, 
     onDelete,
@@ -482,16 +674,21 @@ function FollowUpCard({
 }: {
     followUp: FollowUp;
     onMarkComplete: (id: string) => void;
+    onAddUpdate: (followUp: FollowUp) => void;
     onSnooze: (id: string, days: number) => void;
     onEdit: (followUp: FollowUp) => void;
     onDelete: (id: string) => void;
     getRelativeDate: (date: string) => string;
 }) {
     const [showActions, setShowActions] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
     const isCompleted = followUp.computedStatus === 'COMPLETED';
     const isMissed = followUp.computedStatus === 'MISSED';
     const contextInfo = CONTEXT_LABELS[followUp.contextType] || CONTEXT_LABELS.GENERAL;
     const priorityInfo = PRIORITY_LABELS[followUp.priority] || PRIORITY_LABELS.MEDIUM;
+    const hasHistory = followUp.history && followUp.history.length > 0;
+
+    console.log('[FollowUpCard] followUp:', followUp.title, 'computedStatus:', followUp.computedStatus, 'isCompleted:', isCompleted);
 
     return (
         <div className={`
@@ -534,11 +731,60 @@ function FollowUpCard({
                             <Clock className="w-3 h-3" />
                             {getRelativeDate(followUp.followUpDate)}
                         </span>
+                        {hasHistory && (
+                            <button 
+                                onClick={() => setShowHistory(!showHistory)}
+                                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                            >
+                                <History className="w-3 h-3" />
+                                {followUp.history?.length} update{followUp.history?.length !== 1 ? 's' : ''}
+                            </button>
+                        )}
                     </div>
+                    
+                    {/* History Timeline */}
+                    {showHistory && hasHistory && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                            <p className="text-xs font-medium text-gray-600 mb-2">Update History</p>
+                            <div className="space-y-2">
+                                {followUp.history?.map((item) => (
+                                    <div key={item.id} className="text-xs bg-gray-50 p-2 rounded">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className={`px-1.5 py-0.5 rounded text-xs ${
+                                                item.actionType === 'COMPLETED' 
+                                                    ? 'bg-green-100 text-green-700' 
+                                                    : 'bg-blue-100 text-blue-700'
+                                            }`}>
+                                                {item.actionType === 'COMPLETED' ? 'Completed' : 'Update'}
+                                            </span>
+                                            <span className="text-gray-400">
+                                                {new Date(item.actionDate).toLocaleDateString('en-US', { 
+                                                    month: 'short', 
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </span>
+                                        </div>
+                                        {item.notes && (
+                                            <p className="text-gray-600">{item.notes}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-1">
                     {!isCompleted && (
                         <>
+                            <button
+                                onClick={() => onAddUpdate(followUp)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                title="Add Update"
+                            >
+                                <MessageSquare className="w-4 h-4" />
+                            </button>
                             <button
                                 onClick={() => onMarkComplete(followUp.id)}
                                 className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-colors"

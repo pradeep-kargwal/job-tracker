@@ -19,6 +19,8 @@ import {
     updateFollowUp, 
     deleteFollowUp,
     markComplete,
+    markCompleteWithNote,
+    addUpdateWithNote,
     snoozeFollowUp,
     getAllFollowUps 
 } from '../controllers/followupController';
@@ -93,6 +95,8 @@ router.delete('/interviews/:id', deleteInterview);
 router.put('/followups/:id', updateFollowUp);
 router.delete('/followups/:id', deleteFollowUp);
 router.patch('/followups/:id/complete', markComplete);
+router.patch('/followups/:id/complete-with-note', markCompleteWithNote);
+router.patch('/followups/:id/add-update', addUpdateWithNote);
 router.patch('/followups/:id/snooze', snoozeFollowUp);
 
 // Get all followups for dashboard

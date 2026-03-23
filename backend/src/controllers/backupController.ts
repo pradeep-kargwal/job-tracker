@@ -1,7 +1,96 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
 
 const prisma = new PrismaClient() as any;
+
+// Helper function to export data to Desktop
+const exportToDesktop = async (userId: string, userEmail: string) => {
+    try {
+        const exportPath = path.join(process.env.HOME || process.env.USERPROFILE || 'C:/Users/G', 'Desktop', 'Job-tracker-database-export');
+        
+        // Create folder if it doesn't exist
+        if (!fs.existsSync(exportPath)) {
+            fs.mkdirSync(exportPath, { recursive: true });
+            console.log('[AutoBackup] Created folder:', exportPath);
+        }
+
+        // Fetch all data
+        const [
+            applications,
+            interviewProcesses,
+            interviewEvents,
+            followups,
+            notes,
+            interviews,
+            resumes,
+            notifications
+        ] = await Promise.all([
+            prisma.application.findMany({
+                where: { userId },
+                include: {
+                    notes: true,
+                    interviews: true,
+                    followups: true,
+                    interviewProcesses: { include: { rounds: true } },
+                    interviewEvents: true
+                }
+            }),
+            prisma.interviewProcess.findMany({
+                where: { userId },
+                include: { rounds: true, followups: true }
+            }),
+            prisma.interviewEvent.findMany({
+                where: { userId },
+                include: {
+                    application: { select: { id: true, hiringCompany: true, jobRole: true } }
+                }
+            }),
+            prisma.followUp.findMany({
+                where: { userId },
+                include: { history: true }
+            }),
+            prisma.note.findMany({ where: { userId } }),
+            prisma.interview.findMany({ where: { userId } }),
+            prisma.resume.findMany({ where: { userId } }),
+            prisma.notification.findMany({ where: { userId } })
+        ]);
+
+        const backup = {
+            version: '1.0',
+            exported_at: new Date().toISOString(),
+            user: { email: userEmail },
+            applications,
+            interview_processes: interviewProcesses,
+            interview_events: interviewEvents,
+            followups,
+            notes,
+            interviews,
+            resumes,
+            notifications
+        };
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `job-tracker-backup-${timestamp}.json`;
+        const filePath = path.join(exportPath, filename);
+
+        fs.writeFileSync(filePath, JSON.stringify(backup, null, 2));
+        console.log('[AutoBackup] Data exported to:', filePath);
+        
+        // Also save latest.json
+        const latestPath = path.join(exportPath, 'latest.json');
+        fs.writeFileSync(latestPath, JSON.stringify(backup, null, 2));
+        console.log('[AutoBackup] Latest backup updated');
+        
+        return filePath;
+    } catch (error) {
+        console.error('[AutoBackup] Error exporting to desktop:', error);
+    }
+};
+
+// Export the helper for use in other controllers
+export { exportToDesktop };
 
 // Export all user data
 export const exportData = async (req: Request, res: Response) => {
