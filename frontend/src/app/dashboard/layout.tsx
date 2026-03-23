@@ -15,6 +15,7 @@ import {
     Sparkles,
     Calendar,
     Settings,
+    Clock,
 } from 'lucide-react';
 import { authAPI } from '@/lib/api';
 
@@ -23,6 +24,7 @@ const navigation = [
     { name: 'Applications', href: '/dashboard/applications', icon: Briefcase },
     { name: 'Pipeline', href: '/dashboard/pipeline', icon: Kanban },
     { name: 'Interviews', href: '/dashboard/interviews', icon: Calendar },
+    { name: 'Follow-ups', href: '/dashboard/followups', icon: Clock },
     { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
     { name: 'Resumes', href: '/dashboard/resumes', icon: FileText },
     { name: 'AI Features', href: '/dashboard/ai', icon: Sparkles },

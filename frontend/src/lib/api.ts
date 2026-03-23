@@ -115,6 +115,13 @@ export const followupsAPI = {
     markComplete: (id: string) => api.patch(`/applications/followups/${id}/complete`),
     snooze: (id: string, days: number) => api.patch(`/applications/followups/${id}/snooze`, { days }),
     getAll: () => api.get('/applications/followups/all'),
+    getAllWithFilter: (params?: { status?: string; page?: number; limit?: number }) => {
+        const queryParams = new URLSearchParams();
+        if (params?.status) queryParams.append('status', params.status);
+        if (params?.page) queryParams.append('page', params.page.toString());
+        if (params?.limit) queryParams.append('limit', params.limit.toString());
+        return api.get(`/followups?${queryParams.toString()}`);
+    },
 };
 
 // Resumes API

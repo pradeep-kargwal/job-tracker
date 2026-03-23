@@ -17,6 +17,7 @@ import notificationRoutes from './routes/notifications';
 import interviewProcessRoutes from './routes/interviewProcess';
 import interviewEventRoutes from './routes/interviewEvents';
 import backupRoutes from './routes/backup';
+import followupsRoutes from './routes/followups';
 
 // Import middleware
 import { errorHandler, notFound } from './middleware/errorHandler';
@@ -53,6 +54,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/interview-process', interviewProcessRoutes);
 app.use('/api/interview-events', interviewEventRoutes);
 app.use('/api/backup', backupRoutes);
+app.use('/api/followups', followupsRoutes);
 
 // Error handling
 app.use(notFound);

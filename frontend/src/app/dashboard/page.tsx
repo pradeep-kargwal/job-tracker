@@ -322,54 +322,62 @@ export default function CommandCenterDashboard() {
                         </div>
                         <div className="divide-y divide-border max-h-80 overflow-y-auto">
                             {dueFollowups.length > 0 ? (
-                                dueFollowups.slice(0, 5).map((followup: any) => (
-                                    <div key={followup.id} className="p-4 hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="flex-1 min-w-0">
-                                                <Link
-                                                    href={`/dashboard/applications/${followup.application?.id}`}
-                                                    className="font-medium text-text-primary hover:text-primary truncate block"
-                                                >
-                                                    {followup.application?.hiringCompany || 'Unknown Company'}
-                                                </Link>
-                                                <p className="text-sm text-text-secondary truncate">
-                                                    {followup.application?.jobRole || 'Application'}
-                                                </p>
-                                                <div className="flex items-center gap-2 mt-2">
-                                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                                        followup.contextType === 'AFTER_INTERVIEW' 
-                                                            ? 'bg-blue-100 text-blue-700'
-                                                            : followup.contextType === 'NO_RESPONSE'
-                                                            ? 'bg-red-100 text-red-700'
-                                                            : 'bg-gray-100 text-gray-700'
-                                                    }`}>
-                                                        {followup.contextType === 'AFTER_INTERVIEW' 
-                                                            ? 'After Interview'
-                                                            : followup.contextType === 'NO_RESPONSE'
-                                                            ? 'No Response'
-                                                            : 'General'}
-                                                    </span>
+                                <>
+                                    {dueFollowups.slice(0, 5).map((followup: any) => (
+                                        <div key={followup.id} className="p-4 hover:bg-gray-50 transition-colors">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <Link
+                                                        href={`/dashboard/applications/${followup.application?.id}`}
+                                                        className="font-medium text-text-primary hover:text-primary truncate block"
+                                                    >
+                                                        {followup.application?.hiringCompany || 'Unknown Company'}
+                                                    </Link>
+                                                    <p className="text-sm text-text-secondary truncate">
+                                                        {followup.application?.jobRole || 'Application'}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-2">
+                                                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                            followup.contextType === 'AFTER_INTERVIEW' 
+                                                                ? 'bg-blue-100 text-blue-700'
+                                                                : followup.contextType === 'NO_RESPONSE'
+                                                                ? 'bg-red-100 text-red-700'
+                                                                : 'bg-gray-100 text-gray-700'
+                                                        }`}>
+                                                            {followup.contextType === 'AFTER_INTERVIEW' 
+                                                                ? 'After Interview'
+                                                                : followup.contextType === 'NO_RESPONSE'
+                                                                ? 'No Response'
+                                                                : 'General'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <button
+                                                        onClick={() => handleMarkComplete(followup.id)}
+                                                        className="p-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                                                        title="Mark Done"
+                                                    >
+                                                        <CheckCircle2 className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleSnooze(followup.id, 1)}
+                                                        className="p-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                                        title="Snooze 1 day"
+                                                    >
+                                                        <Clock className="w-4 h-4" />
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <div className="flex flex-col gap-1">
-                                                <button
-                                                    onClick={() => handleMarkComplete(followup.id)}
-                                                    className="p-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-                                                    title="Mark Done"
-                                                >
-                                                    <CheckCircle2 className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleSnooze(followup.id, 1)}
-                                                    className="p-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                                                    title="Snooze 1 day"
-                                                >
-                                                    <Clock className="w-4 h-4" />
-                                                </button>
-                                            </div>
                                         </div>
-                                    </div>
-                                ))
+                                    ))}
+                                    <Link
+                                        href="/dashboard/followups"
+                                        className="flex items-center justify-center gap-1 px-4 py-3 text-sm text-primary hover:text-primary-dark font-medium border-t border-amber-100 hover:bg-amber-50 transition-colors"
+                                    >
+                                        View All <ArrowRight className="w-4 h-4" />
+                                    </Link>
+                                </>
                             ) : (
                                 <div className="p-6 text-center text-text-secondary">
                                     <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-2" />
