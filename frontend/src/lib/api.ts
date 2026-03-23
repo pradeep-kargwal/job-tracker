@@ -113,6 +113,10 @@ export const followupsAPI = {
     }) => api.put(`/applications/followups/${id}`, data),
     delete: (id: string) => api.delete(`/applications/followups/${id}`),
     markComplete: (id: string) => api.patch(`/applications/followups/${id}/complete`),
+    markCompleteWithNote: (id: string, notes?: string) => 
+        api.patch(`/applications/followups/${id}/complete-with-note`, { notes }),
+    addUpdate: (id: string, notes: string, newFollowUpDate?: string) => 
+        api.patch(`/applications/followups/${id}/add-update`, { notes, newFollowUpDate }),
     snooze: (id: string, days: number) => api.patch(`/applications/followups/${id}/snooze`, { days }),
     getAll: () => api.get('/applications/followups/all'),
     getAllWithFilter: (params?: { status?: string; page?: number; limit?: number }) => {

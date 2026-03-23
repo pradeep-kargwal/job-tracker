@@ -5,6 +5,7 @@ import fs from 'fs';
 import prisma from '../config/database';
 import { AuthRequest, ApiResponse, PaginatedResponse, ApplicationStatus } from '../types';
 import { AppError } from '../middleware/errorHandler';
+import { exportToDesktop } from './backupController';
 
 const JD_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'jd');
 
@@ -133,10 +134,30 @@ export const getApplicationById = async (
         throw new AppError('Application not found', 404);
     }
 
+    // Compute status for each follow-up
+    const computeStatus = (followUpDate: Date, isCompleted: boolean): string => {
+        if (isCompleted) return 'COMPLETED';
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const followUp = new Date(followUpDate);
+        followUp.setHours(0, 0, 0, 0);
+        if (followUp < today) return 'MISSED';
+        if (followUp.getTime() === today.getTime()) return 'DUE';
+        return 'UPCOMING';
+    };
+
+    const applicationWithComputedStatus = {
+        ...application,
+        followups: application.followups.map((fu: any) => ({
+            ...fu,
+            computedStatus: computeStatus(fu.followUpDate, fu.status === 'COMPLETED'),
+        })),
+    };
+
     const response: ApiResponse = {
         success: true,
         message: 'Application retrieved successfully',
-        data: application,
+        data: applicationWithComputedStatus,
     };
 
     res.json(response);
@@ -146,6 +167,8 @@ export const createApplication = async (
     req: AuthRequest,
     res: Response
 ): Promise<void> => {
+    console.log('Creating application with body:', req.body);
+    console.log('User from auth:', req.user);
     const data = applicationSchema.parse(req.body);
 
     // Convert techStack array to string for SQLite
@@ -172,6 +195,11 @@ export const createApplication = async (
         message: 'Application created successfully',
         data: application,
     };
+
+    // Auto-export to Desktop in background
+    exportToDesktop(req.user!.id, req.user!.email).catch(err => 
+        console.error('[AutoBackup] Failed to export:', err)
+    );
 
     res.status(201).json(response);
 };
@@ -224,6 +252,11 @@ export const updateApplication = async (
         message: 'Application updated successfully',
         data: application,
     };
+
+    // Auto-export to Desktop in background
+    exportToDesktop(req.user!.id, req.user!.email).catch(err => 
+        console.error('[AutoBackup] Failed to export:', err)
+    );
 
     res.json(response);
 };

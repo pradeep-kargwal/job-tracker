@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { exportToDesktop } from './backupController';
 
 const prisma = new PrismaClient() as any;
 
@@ -72,6 +73,12 @@ export const createFollowUp = async (req: Request, res: Response) => {
             }
         });
 
+        // Auto-export to Desktop in background
+        const userEmail = (req as any).user.email;
+        exportToDesktop(userId, userEmail).catch(err => 
+            console.error('[AutoBackup] Failed to export:', err)
+        );
+
         res.status(201).json({
             success: true,
             message: 'Follow-up created successfully',
@@ -93,6 +100,13 @@ export const getFollowUpsByApplication = async (req: Request, res: Response) => 
             where: {
                 userId,
                 applicationId,
+            },
+            include: {
+                history: {
+                    orderBy: {
+                        actionDate: 'desc',
+                    },
+                },
             },
             orderBy: {
                 followUpDate: 'asc',
@@ -119,11 +133,12 @@ export const getFollowUpsByApplication = async (req: Request, res: Response) => 
 export const getAllFollowUps = async (req: Request, res: Response) => {
     try {
         const userId = (req as any).user.id;
+        const { status, page = 1, limit = 15 } = req.query;
 
+        const where: any = { userId };
+        
         const followUps = await prisma.followUp.findMany({
-            where: {
-                userId,
-            },
+            where,
             include: {
                 application: {
                     select: {
@@ -131,44 +146,35 @@ export const getAllFollowUps = async (req: Request, res: Response) => {
                         hiringCompany: true,
                         jobRole: true,
                     }
-                }
+                },
+                history: {
+                    orderBy: { actionDate: 'desc' },
+                },
             },
             orderBy: {
                 followUpDate: 'asc',
             },
+            skip: (Number(page) - 1) * Number(limit),
+            take: Number(limit),
         });
 
-        // Compute statuses and group
-        const dueToday: any[] = [];
-        const upcoming: any[] = [];
-        const missed: any[] = [];
-        const completed: any[] = [];
+        const total = await prisma.followUp.count({ where });
 
-        followUps.forEach((fu: any) => {
-            const computedStatus = computeStatus(fu.followUpDate || new Date(), fu.status === 'COMPLETED');
-            const followUp = {
-                ...fu,
-                computedStatus,
-            };
-
-            if (computedStatus === 'COMPLETED') {
-                completed.push(followUp);
-            } else if (computedStatus === 'MISSED') {
-                missed.push(followUp);
-            } else if (computedStatus === 'DUE') {
-                dueToday.push(followUp);
-            } else {
-                upcoming.push(followUp);
-            }
-        });
+        const followUpsWithStatus = followUps.map((fu: any) => ({
+            ...fu,
+            computedStatus: computeStatus(fu.followUpDate || new Date(), fu.status === 'COMPLETED'),
+        }));
 
         res.json({
             success: true,
             data: {
-                dueToday,
-                upcoming,
-                missed,
-                completed,
+                followUps: followUpsWithStatus,
+                pagination: {
+                    page: Number(page),
+                    limit: Number(limit),
+                    total,
+                    pages: Math.ceil(total / Number(limit)),
+                }
             }
         });
     } catch (error: any) {
@@ -269,6 +275,132 @@ export const markComplete = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error('Error marking follow-up as complete:', error);
         res.status(500).json({ success: false, message: error.message || 'Failed to mark follow-up as complete' });
+    }
+};
+
+// Mark follow-up as complete with a note
+export const markCompleteWithNote = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { id } = req.params;
+        const { notes } = req.body;
+
+        const followUp = await prisma.followUp.update({
+            where: { id },
+            data: {
+                status: 'COMPLETED',
+                completedAt: new Date(),
+            },
+            include: {
+                application: {
+                    select: {
+                        id: true,
+                        hiringCompany: true,
+                        jobRole: true,
+                    }
+                }
+            }
+        });
+
+        // Create history entry for the completion
+        if (notes) {
+            await prisma.followupHistory.create({
+                data: {
+                    followupId: id,
+                    userId,
+                    actionType: 'COMPLETED',
+                    notes: notes,
+                    actionDate: new Date(),
+                }
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Follow-up marked as complete',
+            data: followUp,
+        });
+    } catch (error: any) {
+        console.error('Error marking follow-up as complete:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to mark follow-up as complete' });
+    }
+};
+
+// Add update with note (text update and optional new date)
+export const addUpdateWithNote = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { id } = req.params;
+        const { notes, newFollowUpDate } = req.body;
+
+        // Get existing follow-up
+        const existingFollowUp = await prisma.followUp.findFirst({
+            where: { id, userId }
+        });
+
+        if (!existingFollowUp) {
+            return res.status(404).json({ success: false, message: 'Follow-up not found' });
+        }
+
+        // Create history entry with the note
+        await prisma.followupHistory.create({
+            data: {
+                followupId: id,
+                userId,
+                actionType: 'UPDATE',
+                notes: notes,
+                actionDate: new Date(),
+            }
+        });
+
+        // Update follow-up with new date if provided
+        let updatedFollowUp;
+        if (newFollowUpDate) {
+            updatedFollowUp = await prisma.followUp.update({
+                where: { id },
+                data: {
+                    followUpDate: new Date(newFollowUpDate),
+                    status: computeStatus(new Date(newFollowUpDate), false),
+                },
+                include: {
+                    application: {
+                        select: {
+                            id: true,
+                            hiringCompany: true,
+                            jobRole: true,
+                        }
+                    },
+                    history: {
+                        orderBy: { actionDate: 'desc' }
+                    }
+                }
+            });
+        } else {
+            updatedFollowUp = await prisma.followUp.findUnique({
+                where: { id },
+                include: {
+                    application: {
+                        select: {
+                            id: true,
+                            hiringCompany: true,
+                            jobRole: true,
+                        }
+                    },
+                    history: {
+                        orderBy: { actionDate: 'desc' }
+                    }
+                }
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Update added successfully',
+            data: updatedFollowUp,
+        });
+    } catch (error: any) {
+        console.error('Error adding update:', error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to add update' });
     }
 };
 

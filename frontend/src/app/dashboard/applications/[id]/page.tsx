@@ -79,6 +79,20 @@ export default function ApplicationDetailPage() {
         }
     }, [id]);
 
+    // Refresh data when page becomes visible (e.g., after navigating back from create page)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (!document.hidden && id) {
+                // Refresh SWR data when page becomes visible
+                mutate();
+                loadInterviewEvents();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [id, mutate]);
+
     const loadInterviewEvents = async () => {
         try {
             setLoadingEvents(true);
@@ -173,9 +187,15 @@ export default function ApplicationDetailPage() {
     if (error) {
         return (
             <div className="p-6">
-                <div className="bg-red-50 text-red-600 p-4 rounded-lg">
-                    Failed to load application
+                <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4">
+                    Failed to load application. The application may have been deleted or does not exist.
                 </div>
+                <button 
+                    onClick={() => router.push('/dashboard/applications')}
+                    className="text-primary hover:underline"
+                >
+                    ← Back to Applications
+                </button>
             </div>
         );
     }
@@ -188,7 +208,14 @@ export default function ApplicationDetailPage() {
         );
     }
 
-    const application = data;
+    // Fix: backend returns "followups" but frontend expects "followUps"
+    console.log('[ApplicationPage] data.followups:', data?.followups);
+    const application = data ? {
+        ...data,
+        followUps: data.followups || [],
+        notes: data.notes || [],
+        interviews: data.interviews || [],
+    } : null;
 
     const handleAddNote = async () => {
         if (!newNote.trim()) return;
@@ -1238,11 +1265,21 @@ interface FollowUpSectionProps {
 
 function FollowUpSection({ applicationId, followUps, onStatusChange }: FollowUpSectionProps) {
     const [showAddForm, setShowAddForm] = useState(false);
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [showCompleteModal, setShowCompleteModal] = useState(false);
+    const [selectedFollowUp, setSelectedFollowUp] = useState<any>(null);
     const [formData, setFormData] = useState({
         title: '',
         followUpDate: '',
         contextType: 'GENERAL',
         priority: 'MEDIUM'
+    });
+    const [updateForm, setUpdateForm] = useState({
+        notes: '',
+        newFollowUpDate: '',
+    });
+    const [completeForm, setCompleteForm] = useState({
+        notes: '',
     });
 
     const handleQuickAdd = async (days: number) => {
@@ -1286,6 +1323,48 @@ function FollowUpSection({ applicationId, followUps, onStatusChange }: FollowUpS
         }
     };
 
+    const handleMarkCompleteWithNote = async () => {
+        if (!selectedFollowUp) return;
+        try {
+            await followupsAPI.markCompleteWithNote(selectedFollowUp.id, completeForm.notes || undefined);
+            setShowCompleteModal(false);
+            setCompleteForm({ notes: '' });
+            setSelectedFollowUp(null);
+            onStatusChange();
+        } catch (error) {
+            console.error('Error marking complete:', error);
+        }
+    };
+
+    const handleAddUpdate = async () => {
+        if (!selectedFollowUp) return;
+        try {
+            await followupsAPI.addUpdate(
+                selectedFollowUp.id,
+                updateForm.notes,
+                updateForm.newFollowUpDate || undefined
+            );
+            setShowUpdateModal(false);
+            setUpdateForm({ notes: '', newFollowUpDate: '' });
+            setSelectedFollowUp(null);
+            onStatusChange();
+        } catch (error) {
+            console.error('Error adding update:', error);
+        }
+    };
+
+    const openUpdateModal = (followUp: any) => {
+        setSelectedFollowUp(followUp);
+        setUpdateForm({ notes: '', newFollowUpDate: '' });
+        setShowUpdateModal(true);
+    };
+
+    const openCompleteModal = (followUp: any) => {
+        setSelectedFollowUp(followUp);
+        setCompleteForm({ notes: '' });
+        setShowCompleteModal(true);
+    };
+
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this follow-up?')) return;
         try {
@@ -1301,6 +1380,8 @@ function FollowUpSection({ applicationId, followUps, onStatusChange }: FollowUpS
     const upcoming = safeFollowUps.filter(f => f.computedStatus === 'UPCOMING' || f.computedStatus === 'DUE');
     const missed = safeFollowUps.filter(f => f.computedStatus === 'MISSED');
     const completed = safeFollowUps.filter(f => f.computedStatus === 'COMPLETED');
+
+    console.log('[FollowUpSection] followUps:', safeFollowUps.length, 'upcoming:', upcoming.length, 'missed:', missed.length, 'completed:', completed.length);
 
     const getRelativeDate = (dateStr: string) => {
         const date = new Date(dateStr);
@@ -1401,11 +1482,28 @@ function FollowUpSection({ applicationId, followUps, onStatusChange }: FollowUpS
                                 <div className="flex-1">
                                     <p className="text-sm font-medium text-gray-900">{followUp.title}</p>
                                     <p className="text-xs text-gray-500">{getRelativeDate(followUp.followUpDate)}</p>
+                                    {followUp.history && followUp.history.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {followUp.history.slice(0, 2).map((h: any) => (
+                                                <div key={h.id} className="text-xs text-gray-600 bg-white/50 p-1.5 rounded">
+                                                    <span className="font-medium">{h.actionType}:</span> {h.notes}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex gap-1">
                                     <button
-                                        onClick={() => handleMarkComplete(followUp.id)}
+                                        onClick={() => openUpdateModal(followUp)}
+                                        className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                                        title="Add Update"
+                                    >
+                                        <MessageSquare className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                        onClick={() => openCompleteModal(followUp)}
                                         className="p-1 text-green-600 hover:bg-green-100 rounded"
+                                        title="Mark Complete"
                                     >
                                         <Check className="w-3 h-3" />
                                     </button>
@@ -1435,11 +1533,28 @@ function FollowUpSection({ applicationId, followUps, onStatusChange }: FollowUpS
                                 <div className="flex-1">
                                     <p className="text-sm font-medium text-gray-900">{followUp.title}</p>
                                     <p className="text-xs text-gray-500">{getRelativeDate(followUp.followUpDate)}</p>
+                                    {followUp.history && followUp.history.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {followUp.history.slice(0, 2).map((h: any) => (
+                                                <div key={h.id} className="text-xs text-gray-600 bg-white/50 p-1.5 rounded">
+                                                    <span className="font-medium">{h.actionType}:</span> {h.notes}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex gap-1">
                                     <button
-                                        onClick={() => handleMarkComplete(followUp.id)}
+                                        onClick={() => openUpdateModal(followUp)}
+                                        className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                                        title="Add Update"
+                                    >
+                                        <MessageSquare className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                        onClick={() => openCompleteModal(followUp)}
                                         className="p-1 text-green-600 hover:bg-green-100 rounded"
+                                        title="Mark Complete"
                                     >
                                         <Check className="w-3 h-3" />
                                     </button>
@@ -1469,6 +1584,15 @@ function FollowUpSection({ applicationId, followUps, onStatusChange }: FollowUpS
                                 <div className="flex-1">
                                     <p className="text-sm font-medium text-gray-900">{followUp.title}</p>
                                     <p className="text-xs text-gray-500">{getRelativeDate(followUp.followUpDate)}</p>
+                                    {followUp.history && followUp.history.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {followUp.history.slice(0, 2).map((h: any) => (
+                                                <div key={h.id} className="text-xs text-gray-600 bg-white/50 p-1.5 rounded">
+                                                    <span className="font-medium">{h.actionType}:</span> {h.notes}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <button
                                     onClick={() => handleDelete(followUp.id)}
@@ -1487,6 +1611,113 @@ function FollowUpSection({ applicationId, followUps, onStatusChange }: FollowUpS
                 <div className="text-center py-6 text-gray-500">
                     <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                     <p className="text-sm">No follow-ups yet</p>
+                </div>
+            )}
+
+            {/* Add Update Modal */}
+            {showUpdateModal && selectedFollowUp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowUpdateModal(false)} />
+                    <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Add Update</h3>
+                            <button
+                                onClick={() => setShowUpdateModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                    Update Note
+                                </label>
+                                <textarea
+                                    value={updateForm.notes}
+                                    onChange={(e) => setUpdateForm({ ...updateForm, notes: e.target.value })}
+                                    placeholder="What progress have you made?"
+                                    rows={3}
+                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                    Reschedule (Optional)
+                                </label>
+                                <input
+                                    type="date"
+                                    value={updateForm.newFollowUpDate}
+                                    onChange={(e) => setUpdateForm({ ...updateForm, newFollowUpDate: e.target.value })}
+                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Leave empty to keep the current due date
+                                </p>
+                            </div>
+                            <div className="flex gap-2 justify-end pt-2">
+                                <button
+                                    onClick={() => setShowUpdateModal(false)}
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAddUpdate}
+                                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
+                                >
+                                    Add Update
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Mark Complete Modal */}
+            {showCompleteModal && selectedFollowUp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowCompleteModal(false)} />
+                    <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Mark as Complete</h3>
+                            <button
+                                onClick={() => setShowCompleteModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                    Completion Note (Optional)
+                                </label>
+                                <textarea
+                                    value={completeForm.notes}
+                                    onChange={(e) => setCompleteForm({ ...completeForm, notes: e.target.value })}
+                                    placeholder="What was the outcome?"
+                                    rows={3}
+                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+                            <div className="flex gap-2 justify-end pt-2">
+                                <button
+                                    onClick={() => setShowCompleteModal(false)}
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleMarkCompleteWithNote}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                                >
+                                    <Check className="w-4 h-4" />
+                                    Mark Complete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

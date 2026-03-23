@@ -8,7 +8,8 @@ import {
     Edit3, 
     ExternalLink,
     AlertCircle,
-    Bell
+    Bell,
+    MessageSquare
 } from 'lucide-react';
 import { useState } from 'react';
 import { StatusBadge } from './StatusBadge';
@@ -25,6 +26,12 @@ interface FollowUp {
     relatedRound: number | null;
     interviewProcessId: string | null;
     computedStatus: string;
+    history?: {
+        id: string;
+        actionDate: string;
+        actionType: string;
+        notes: string | null;
+    }[];
     application: {
         id: string;
         hiringCompany: string | null;
@@ -38,6 +45,8 @@ interface FollowUpCardProps {
     onEdit?: (followUp: FollowUp) => void;
     onDelete: (id: string) => void;
     onSnooze?: (id: string, days: number) => void;
+    onUpdate?: (followUp: FollowUp) => void;
+    onMarkCompleteWithNote?: (followUp: FollowUp) => void;
     showApplication?: boolean;
     isOverdue?: boolean;
 }
@@ -55,10 +64,13 @@ export function FollowUpCard({
     onEdit, 
     onDelete, 
     onSnooze,
+    onUpdate,
+    onMarkCompleteWithNote,
     showApplication = true,
     isOverdue = false
 }: FollowUpCardProps) {
     const [showActions, setShowActions] = useState(false);
+    const [showCompleteActions, setShowCompleteActions] = useState(false);
     const isCompleted = followUp.computedStatus === 'COMPLETED';
     const isMissed = followUp.computedStatus === 'MISSED' || isOverdue;
     const isDue = followUp.computedStatus === 'DUE';
@@ -122,6 +134,16 @@ export function FollowUpCard({
                         </p>
                     )}
                     
+                    {followUp.history && followUp.history.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                            {followUp.history.slice(0, 2).map((h) => (
+                                <div key={h.id} className="text-xs text-gray-600 bg-gray-100 p-1.5 rounded">
+                                    <span className="font-medium">{h.actionType}:</span> {h.notes}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    
                     <div className="flex items-center gap-3 mt-3 flex-wrap">
                         <span className={`text-xs flex items-center gap-1 ${
                             isMissed ? 'text-red-600 font-medium' : 
@@ -144,13 +166,50 @@ export function FollowUpCard({
                 <div className="flex items-center gap-1 flex-shrink-0">
                     {!isCompleted && (
                         <>
-                            <button
-                                onClick={() => onMarkComplete(followUp.id)}
-                                className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
-                                title="Mark Complete"
-                            >
-                                <Check className="w-4 h-4" />
-                            </button>
+                            {onUpdate && (
+                                <button
+                                    onClick={() => onUpdate(followUp)}
+                                    className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                    title="Add Update"
+                                >
+                                    <MessageSquare className="w-4 h-4" />
+                                </button>
+                            )}
+                            {onMarkCompleteWithNote ? (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => { setShowCompleteActions(!showCompleteActions); setShowActions(false); }}
+                                        className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
+                                        title="Complete"
+                                    >
+                                        <Check className="w-4 h-4" />
+                                    </button>
+                                    {showCompleteActions && (
+                                        <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[160px]">
+                                            <button
+                                                onClick={() => { onMarkCompleteWithNote(followUp); setShowCompleteActions(false); }}
+                                                className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 flex items-center gap-2"
+                                            >
+                                                <Check className="w-3 h-3" />Complete with Note
+                                            </button>
+                                            <button
+                                                onClick={() => { onMarkComplete(followUp.id); setShowCompleteActions(false); }}
+                                                className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 flex items-center gap-2"
+                                            >
+                                                <Check className="w-3 h-3" />Quick Complete
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => onMarkComplete(followUp.id)}
+                                    className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
+                                    title="Mark Complete"
+                                >
+                                    <Check className="w-4 h-4" />
+                                </button>
+                            )}
                             {onSnooze && (
                                 <div className="relative">
                                     <button

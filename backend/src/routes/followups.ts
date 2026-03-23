@@ -55,7 +55,12 @@ export const getAllFollowUpsWithFilter = async (req: Request, res: Response) => 
                             hiringCompany: true,
                             jobRole: true,
                         }
-                    }
+                    },
+                    history: {
+                        orderBy: {
+                            actionDate: 'desc',
+                        },
+                    },
                 },
                 orderBy: {
                     followUpDate: 'asc',

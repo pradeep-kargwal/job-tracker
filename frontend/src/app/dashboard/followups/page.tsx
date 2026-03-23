@@ -11,7 +11,9 @@ import {
     ChevronLeft,
     ChevronRight,
     RefreshCw,
-    X
+    X,
+    Check,
+    MessageSquare
 } from 'lucide-react';
 import { followupsAPI } from '@/lib/api';
 import { FollowUpCard } from '@/components/FollowUpCard';
@@ -27,6 +29,12 @@ interface FollowUp {
     priority: string;
     relatedRound: number | null;
     computedStatus: string;
+    history?: {
+        id: string;
+        actionDate: string;
+        actionType: string;
+        notes: string | null;
+    }[];
     application: {
         id: string;
         hiringCompany: string | null;
@@ -58,6 +66,11 @@ export default function FollowUpsPage() {
         description: '',
         followUpDate: '',
     });
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [updateForm, setUpdateForm] = useState({ notes: '', newFollowUpDate: '' });
+    const [showCompleteModal, setShowCompleteModal] = useState(false);
+    const [completeForm, setCompleteForm] = useState({ notes: '' });
+    const [selectedFollowUp, setSelectedFollowUp] = useState<FollowUp | null>(null);
 
     const getFilterParams = () => {
         switch (statusFilter) {
@@ -166,7 +179,58 @@ export default function FollowUpsPage() {
             console.error('Error updating:', err);
         }
     };
-    
+
+    const handleAddUpdate = async () => {
+        if (!selectedFollowUp) return;
+        try {
+            await followupsAPI.addUpdate(
+                selectedFollowUp.id,
+                updateForm.notes,
+                updateForm.newFollowUpDate || undefined
+            );
+            setShowUpdateModal(false);
+            setUpdateForm({ notes: '', newFollowUpDate: '' });
+            setSelectedFollowUp(null);
+            fetchFollowUps();
+        } catch (err) {
+            console.error('Error adding update:', err);
+        }
+    };
+
+    const handleMarkCompleteWithNote = async () => {
+        if (!selectedFollowUp) return;
+        try {
+            await followupsAPI.markCompleteWithNote(selectedFollowUp.id, completeForm.notes || undefined);
+            setShowCompleteModal(false);
+            setCompleteForm({ notes: '' });
+            setSelectedFollowUp(null);
+            fetchFollowUps();
+        } catch (err) {
+            console.error('Error marking complete:', err);
+        }
+    };
+
+    const openUpdateModal = (followUp: FollowUp) => {
+        setSelectedFollowUp(followUp);
+        setUpdateForm({ notes: '', newFollowUpDate: '' });
+        setShowUpdateModal(true);
+    };
+
+    const openCompleteModal = (followUp: FollowUp) => {
+        setSelectedFollowUp(followUp);
+        setCompleteForm({ notes: '' });
+        setShowCompleteModal(true);
+    };
+
+    const openEditModal = (followUp: FollowUp) => {
+        setEditingFollowUp(followUp);
+        setEditForm({
+            title: followUp.title,
+            description: followUp.description || '',
+            followUpDate: followUp.followUpDate.split('T')[0],
+        });
+    };
+
     const filteredFollowUps = followUps.filter((fu: FollowUp) => {
         if (statusFilter === 'due_today') return fu.computedStatus === 'DUE';
         if (statusFilter === 'overdue') return fu.computedStatus === 'MISSED';
@@ -286,6 +350,8 @@ export default function FollowUpsPage() {
                                         onEdit={handleEdit}
                                         onDelete={handleDelete}
                                         onSnooze={handleSnooze}
+                                        onUpdate={() => openUpdateModal(followUp)}
+                                        onMarkCompleteWithNote={() => openCompleteModal(followUp)}
                                         showApplication={true}
                                         isOverdue={followUp.computedStatus === 'MISSED'}
                                     />
@@ -346,7 +412,7 @@ export default function FollowUpsPage() {
             </div>
 
             {/* Edit Modal */}
-            {editingFollowUp && (
+            {editingFollowUp && !showUpdateModal && !showCompleteModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/50" onClick={() => setEditingFollowUp(null)} />
                     <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
@@ -405,6 +471,112 @@ export default function FollowUpsPage() {
                                     className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
                                 >
                                     Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Update Modal */}
+            {showUpdateModal && selectedFollowUp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowUpdateModal(false)} />
+                    <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Add Update</h3>
+                            <button
+                                onClick={() => setShowUpdateModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-text-secondary mb-1">
+                                    Update Note
+                                </label>
+                                <textarea
+                                    value={updateForm.notes}
+                                    onChange={(e) => setUpdateForm({ ...updateForm, notes: e.target.value })}
+                                    placeholder="What progress have you made?"
+                                    rows={3}
+                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-text-secondary mb-1">
+                                    Reschedule (Optional)
+                                </label>
+                                <input
+                                    type="date"
+                                    value={updateForm.newFollowUpDate}
+                                    onChange={(e) => setUpdateForm({ ...updateForm, newFollowUpDate: e.target.value })}
+                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                />
+                                <p className="text-xs text-text-secondary mt-1">
+                                    Leave empty to keep the current due date
+                                </p>
+                            </div>
+                            <div className="flex gap-2 justify-end pt-2">
+                                <button
+                                    onClick={() => setShowUpdateModal(false)}
+                                    className="px-4 py-2 text-text-secondary hover:bg-gray-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAddUpdate}
+                                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
+                                >
+                                    Add Update
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Mark Complete Modal */}
+            {showCompleteModal && selectedFollowUp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowCompleteModal(false)} />
+                    <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Mark Complete</h3>
+                            <button
+                                onClick={() => setShowCompleteModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-text-secondary mb-1">
+                                    Completion Note (Optional)
+                                </label>
+                                <textarea
+                                    value={completeForm.notes}
+                                    onChange={(e) => setCompleteForm({ ...completeForm, notes: e.target.value })}
+                                    placeholder="How did it go?"
+                                    rows={3}
+                                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+                            <div className="flex gap-2 justify-end pt-2">
+                                <button
+                                    onClick={() => setShowCompleteModal(false)}
+                                    className="px-4 py-2 text-text-secondary hover:bg-gray-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleMarkCompleteWithNote}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                >
+                                    Mark Complete
                                 </button>
                             </div>
                         </div>
