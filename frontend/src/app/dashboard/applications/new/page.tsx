@@ -32,6 +32,7 @@ const PIPELINE_STAGES = [
     { key: 'INTERVIEW_IN_PROGRESS', label: 'Interview' },
     { key: 'OFFER', label: 'Offer' },
     { key: 'REJECTED', label: 'Rejected' },
+    { key: 'GHOSTED', label: 'Ghosted' },
 ];
 
 const SOURCES = [

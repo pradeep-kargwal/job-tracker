@@ -55,6 +55,7 @@ const PIPELINE_STAGES = [
     { key: 'OFFER', label: 'Offer', color: 'bg-green-100' },
     { key: 'REJECTED', label: 'Rejected', color: 'bg-red-100' },
     { key: 'ON_HOLD', label: 'On Hold', color: 'bg-orange-100' },
+    { key: 'GHOSTED', label: 'Ghosted', color: 'bg-zinc-200' },
 ];
 
 export default function ApplicationDetailPage() {

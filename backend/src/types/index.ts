@@ -38,7 +38,8 @@ export type ApplicationStatus =
     | 'interview_completed'
     | 'offer'
     | 'rejected'
-    | 'on_hold';
+    | 'on_hold'
+    | 'ghosted';
 
 export type NoteType = 'call' | 'general' | 'followup' | 'feedback';
 
@@ -59,7 +60,8 @@ export const STATUS_ORDER: ApplicationStatus[] = [
     'interview_completed',
     'offer',
     'rejected',
-    'on_hold'
+    'on_hold',
+    'ghosted'
 ];
 
 export const STATUS_LABELS: Record<ApplicationStatus, string> = {
@@ -71,5 +73,6 @@ export const STATUS_LABELS: Record<ApplicationStatus, string> = {
     interview_completed: 'Interview Completed',
     offer: 'Offer',
     rejected: 'Rejected',
-    on_hold: 'On Hold'
+    on_hold: 'On Hold',
+    ghosted: 'Ghosted'
 };

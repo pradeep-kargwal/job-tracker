@@ -294,6 +294,7 @@ export const getFunnelData = async (
         interviewCompleted,
         offers,
         rejected,
+        ghosted,
     ] = await Promise.all([
         prisma.application.count({
             where: { userId, currentStatus: 'NEW_CALL' },
@@ -319,6 +320,9 @@ export const getFunnelData = async (
         prisma.application.count({
             where: { userId, currentStatus: 'REJECTED' },
         }),
+        prisma.application.count({
+            where: { userId, currentStatus: 'GHOSTED' },
+        }),
     ]);
 
     const response: ApiResponse = {
@@ -334,6 +338,7 @@ export const getFunnelData = async (
                 { stage: 'Interview Completed', count: interviewCompleted, percentage: Math.round((interviewCompleted / newCalls) * 100) || 0 },
                 { stage: 'Offers', count: offers, percentage: Math.round((offers / newCalls) * 100) || 0 },
                 { stage: 'Rejected', count: rejected, percentage: Math.round((rejected / newCalls) * 100) || 0 },
+                { stage: 'Ghosted', count: ghosted, percentage: Math.round((ghosted / newCalls) * 100) || 0 },
             ],
         },
     };
@@ -551,7 +556,7 @@ export const getComprehensiveAnalytics = async (
         const data = companyMap.get(company)!;
         data.count++;
         // Prioritize more advanced stages
-        const stageOrder = ['OFFER', 'INTERVIEW_COMPLETED', 'INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'SHORTLISTED', 'APPLIED', 'JD_RECEIVED', 'NEW_CALL', 'REJECTED'];
+        const stageOrder = ['OFFER', 'INTERVIEW_COMPLETED', 'INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'SHORTLISTED', 'APPLIED', 'JD_RECEIVED', 'NEW_CALL', 'REJECTED', 'GHOSTED'];
         if (stageOrder.indexOf(app.currentStatus) < stageOrder.indexOf(data.status)) {
             data.status = app.currentStatus;
         }

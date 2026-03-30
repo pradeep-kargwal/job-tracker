@@ -29,11 +29,11 @@ const applicationSchema = z.object({
     applied: z.boolean().optional(),
     appliedDate: z.string().optional(),
     resumeVersion: z.string().optional(),
-    currentStatus: z.enum(['NEW_CALL', 'JD_RECEIVED', 'APPLIED', 'SHORTLISTED', 'INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER', 'REJECTED', 'ON_HOLD']).optional(),
+    currentStatus: z.enum(['NEW_CALL', 'JD_RECEIVED', 'APPLIED', 'SHORTLISTED', 'INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER', 'REJECTED', 'ON_HOLD', 'GHOSTED']).optional(),
 });
 
 const updateStatusSchema = z.object({
-    currentStatus: z.enum(['NEW_CALL', 'JD_RECEIVED', 'APPLIED', 'SHORTLISTED', 'INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER', 'REJECTED', 'ON_HOLD']),
+    currentStatus: z.enum(['NEW_CALL', 'JD_RECEIVED', 'APPLIED', 'SHORTLISTED', 'INTERVIEW_IN_PROGRESS', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED', 'OFFER', 'REJECTED', 'ON_HOLD', 'GHOSTED']),
 });
 
 export const getApplications = async (
@@ -363,6 +363,7 @@ export const getPipelineData = async (
         OFFER: [],
         REJECTED: [],
         ON_HOLD: [],
+        GHOSTED: [],
     };
 
     applications.forEach((app) => {

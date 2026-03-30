@@ -53,6 +53,7 @@ export const STATUS_LABELS: Record<string, string> = {
     OFFER: 'Offer',
     REJECTED: 'Rejected',
     ON_HOLD: 'On Hold',
+    GHOSTED: 'Ghosted',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -66,6 +67,7 @@ export const STATUS_COLORS: Record<string, string> = {
     OFFER: 'status-offer',
     REJECTED: 'status-rejected',
     ON_HOLD: 'status-on_hold',
+    GHOSTED: 'status-ghosted',
 };
 
 export const SOURCE_LABELS: Record<string, string> = {

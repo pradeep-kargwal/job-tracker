@@ -39,7 +39,9 @@ import {
     Briefcase,
     Phone,
     Mail,
-    TrendingUp
+    TrendingUp,
+    ArrowRight,
+    Move
 } from 'lucide-react';
 import { applicationsAPI, interviewEventsAPI, followupsAPI } from '@/lib/api';
 import { STATUS_LABELS } from '@/lib/utils';
@@ -53,6 +55,7 @@ const STATUS_ORDER = [
     'OFFER',
     'REJECTED',
     'ON_HOLD',
+    'GHOSTED',
 ];
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; indicator: string }> = {
@@ -64,6 +67,7 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; 
     OFFER: { bg: 'bg-green-100', border: 'border-green-300', text: 'text-green-700', indicator: 'bg-green-500' },
     REJECTED: { bg: 'bg-red-100', border: 'border-red-300', text: 'text-red-700', indicator: 'bg-red-500' },
     ON_HOLD: { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-700', indicator: 'bg-gray-500' },
+    GHOSTED: { bg: 'bg-zinc-100', border: 'border-zinc-400', text: 'text-zinc-700', indicator: 'bg-zinc-600' },
 };
 
 const fetcher = () => applicationsAPI.getPipeline().then((res) => res.data);
@@ -91,15 +95,16 @@ async function getAppDetails(applications: any[]) {
 
 interface KanbanCardProps {
     application: any;
-    appDetails: { interviews: any[]; followups: any[] };
+    appDetails: Record<string, { interviews: any[]; followups: any[] }>;
     onClick: () => void;
     onAddInterview: () => void;
     onAddFollowup: () => void;
     isExpanded: boolean;
     onToggleExpand: () => void;
+    onMoveCard: (appId: string, newStatus: string) => void;
 }
 
-function KanbanCard({ application, appDetails, onClick, onAddInterview, onAddFollowup, isExpanded, onToggleExpand }: KanbanCardProps) {
+function KanbanCard({ application, appDetails, onClick, onAddInterview, onAddFollowup, isExpanded, onToggleExpand, onMoveCard }: KanbanCardProps) {
     const {
         attributes,
         listeners,
@@ -108,6 +113,9 @@ function KanbanCard({ application, appDetails, onClick, onAddInterview, onAddFol
         transition,
         isDragging,
     } = useSortable({ id: application.id });
+
+    const [showMoveModal, setShowMoveModal] = useState(false);
+    const [movingTo, setMovingTo] = useState<string | null>(null);
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -175,6 +183,21 @@ function KanbanCard({ application, appDetails, onClick, onAddInterview, onAddFol
                         {STATUS_LABELS[application.currentStatus] || application.currentStatus}
                     </span>
                 </div>
+            </div>
+
+            {/* Move Button - always visible */}
+            <div className="mt-2 pt-2 border-t border-gray-100">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMoveModal(true);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-md text-xs font-medium hover:bg-indigo-100 transition-colors"
+                    aria-label={`Move ${application.jobRole || 'application'} to another stage`}
+                >
+                    <Move className="w-3.5 h-3.5" />
+                    Move
+                </button>
             </div>
 
             {/* Interview/Follow-up Context */}
@@ -318,6 +341,83 @@ function KanbanCard({ application, appDetails, onClick, onAddInterview, onAddFol
                     </Link>
                 </div>
             )}
+
+            {/* Move Stage Modal */}
+            {showMoveModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="move-modal-title"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowMoveModal(false);
+                    }}
+                >
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-xs mx-4 overflow-hidden">
+                        <div className="p-4 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <h3 id="move-modal-title" className="text-sm font-semibold text-gray-900">
+                                    Move to Stage
+                                </h3>
+                                <button
+                                    onClick={() => setShowMoveModal(false)}
+                                    className="p-1 hover:bg-gray-100 rounded-full"
+                                    aria-label="Close"
+                                >
+                                    <X className="w-4 h-4 text-gray-500" />
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                {application.jobRole || 'Untitled'} at {application.hiringCompany || 'Unknown Company'}
+                            </p>
+                        </div>
+                        <div className="p-2 max-h-64 overflow-y-auto">
+                            {STATUS_ORDER.map((status) => {
+                                const isCurrentStatus = status === application.currentStatus;
+                                const isMoving = movingTo === status;
+                                return (
+                                    <button
+                                        key={status}
+                                        disabled={isCurrentStatus || !!movingTo}
+                                        onClick={() => {
+                                            setMovingTo(status);
+                                            onMoveCard(application.id, status);
+                                            setShowMoveModal(false);
+                                            setMovingTo(null);
+                                        }}
+                                        className={`
+                                            w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm transition-colors
+                                            ${isCurrentStatus
+                                                ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                                                : isMoving
+                                                    ? 'bg-indigo-100 text-indigo-700'
+                                                    : 'hover:bg-indigo-50 text-gray-700 hover:text-indigo-700'
+                                            }
+                                        `}
+                                        role="option"
+                                        aria-selected={isCurrentStatus}
+                                        aria-label={`Move to ${STATUS_LABELS[status] || status}${isCurrentStatus ? ' (current stage)' : ''}`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status]?.indicator || 'bg-gray-400'}`} />
+                                        <span className="flex-1 font-medium">
+                                            {STATUS_LABELS[status] || status}
+                                        </span>
+                                        {isCurrentStatus && (
+                                            <span className="text-xs text-gray-400">Current</span>
+                                        )}
+                                        {!isCurrentStatus && (
+                                            <ArrowRight className="w-4 h-4 text-gray-400" />
+                                        )}
+                                        {isMoving && (
+                                            <span className="text-xs text-indigo-600">Moving...</span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -331,9 +431,10 @@ interface KanbanColumnProps {
     onAddFollowup: (appId: string) => void;
     expandedCards: Set<string>;
     onToggleExpand: (id: string) => void;
+    onMoveCard: (appId: string, newStatus: string) => void;
 }
 
-function KanbanColumn({ status, applications, appDetails, onCardClick, onAddInterview, onAddFollowup, expandedCards, onToggleExpand }: KanbanColumnProps) {
+function KanbanColumn({ status, applications, appDetails, onCardClick, onAddInterview, onAddFollowup, expandedCards, onToggleExpand, onMoveCard }: KanbanColumnProps) {
     const colors = STATUS_COLORS[status] || { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-700', indicator: 'bg-gray-500' };
 
     return (
@@ -367,6 +468,7 @@ function KanbanColumn({ status, applications, appDetails, onCardClick, onAddInte
                                 onAddFollowup={() => onAddFollowup(app.id)}
                                 isExpanded={expandedCards.has(app.id)}
                                 onToggleExpand={() => onToggleExpand(app.id)}
+                                onMoveCard={onMoveCard}
                             />
                         ))}
                     </div>
@@ -444,7 +546,7 @@ export default function PipelinePage() {
     }, [activeId]);
 
     // Get active application for drag overlay
-    const activeApplication = activeId ? Object.values(data?.data || {}).flat().find((a: any) => a.id === activeId) : null;
+    const activeApplication = activeId ? Object.values(data?.data || {}).flat().find((a: any) => a.id === activeId) as any : null;
 
     // Load app details when data changes
     useMemo(() => {
@@ -468,7 +570,7 @@ export default function PipelinePage() {
 
         const activeApp = Object.values(data?.data || {})
             .flat()
-            .find((a: any) => a.id === active.id);
+            .find((a: any) => a.id === active.id) as any;
 
         if (!activeApp) return;
 
@@ -489,7 +591,7 @@ export default function PipelinePage() {
                 (event.activatorEvent as MouseEvent).clientY
             );
             const columnHeader = overElement?.closest('[data-status]');
-            newStatus = columnHeader?.getAttribute('data-status');
+            newStatus = columnHeader?.getAttribute('data-status') ?? null;
         }
 
         if (newStatus && newStatus !== activeApp.currentStatus) {
@@ -519,7 +621,66 @@ export default function PipelinePage() {
         }
     };
 
+    const handleMoveFromButton = async (appId: string, newStatus: string) => {
+        const activeApp = Object.values(data?.data || {})
+            .flat()
+            .find((a: any) => a.id === appId) as any;
+
+        if (!activeApp || newStatus === activeApp.currentStatus) return;
+
+        // Show confirmation for specific statuses
+        if (newStatus === 'INTERVIEW_IN_PROGRESS') {
+            setPendingStatus(newStatus);
+            setPendingApp(activeApp);
+            setShowStatusModal(true);
+            return;
+        }
+
+        if (newStatus === 'OFFER') {
+            if (confirm('Mark this as Offer Received?')) {
+                await updateStatus(appId, newStatus);
+            }
+            return;
+        }
+
+        if (newStatus === 'REJECTED') {
+            setPendingStatus(newStatus);
+            setPendingApp(activeApp);
+            setShowStatusModal(true);
+            return;
+        }
+
+        await updateStatus(appId, newStatus);
+    };
+
     const updateStatus = async (appId: string, status: string, reason?: string) => {
+        const previousData = data?.data;
+        
+        // Optimistic update
+        mutate(
+            '/pipeline',
+            (currentData: any) => {
+                if (!currentData?.data) return currentData;
+                
+                const newData = { ...currentData.data };
+                
+                // Find and remove from current status
+                for (const s of Object.keys(newData)) {
+                    const idx = newData[s]?.findIndex((a: any) => a.id === appId);
+                    if (idx !== undefined && idx >= 0) {
+                        const [app] = newData[s].splice(idx, 1);
+                        // Add to new status
+                        if (!newData[status]) newData[status] = [];
+                        newData[status] = [...newData[status], { ...app, currentStatus: status }];
+                        break;
+                    }
+                }
+                
+                return { ...currentData, data: newData };
+            },
+            false
+        );
+
         try {
             await applicationsAPI.updateStatus(appId, { currentStatus: status });
             if (reason) {
@@ -528,6 +689,9 @@ export default function PipelinePage() {
             mutate('/pipeline');
         } catch (error) {
             console.error('Failed to update status:', error);
+            // Rollback on error
+            mutate('/pipeline', previousData, false);
+            alert('Failed to move application. Please try again.');
         }
     };
 
@@ -748,6 +912,7 @@ export default function PipelinePage() {
                                 }}
                                 expandedCards={expandedCards}
                                 onToggleExpand={toggleExpand}
+                                onMoveCard={handleMoveFromButton}
                             />
                         </div>
                     ))}

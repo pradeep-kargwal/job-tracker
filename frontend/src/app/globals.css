@@ -95,3 +95,7 @@ body {
 .status-on_hold {
     @apply bg-gray-100 text-gray-700;
 }
+
+.status-ghosted {
+    @apply bg-zinc-100 text-zinc-700;
+}

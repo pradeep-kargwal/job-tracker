@@ -54,7 +54,8 @@ const PIPELINE_STAGES = [
     'INTERVIEW_COMPLETED',
     'OFFER',
     'REJECTED',
-    'ON_HOLD'
+    'ON_HOLD',
+    'GHOSTED'
 ];
 
 export default function ApplicationQuickView({ application, onClose }: ApplicationQuickViewProps) {
